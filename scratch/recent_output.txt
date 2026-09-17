@@ -1,0 +1,65 @@
+==========================================================================
+     BACKTEST RUNNER — SPECIFIC DATASET (2026.09.05 to 2026.09.17)        
+==========================================================================
+Codebase Status: UNCHANGED AS-IS
+Target Pairs:   EURUSD, GBPUSD, USDCAD, USDJPY, AUDUSD
+==========================================================================
+
+[+] Loading & Processing EURUSD (2026.09.05 - 2026.09.17)...
+    Raw 1m rows: 12790 | Resampled 5m candles: 2558
+    Date Range: 2026-09-07 00:00:00 to 2026-09-17 21:05:00
+    Signals Generated: 206
+
+[+] Loading & Processing GBPUSD (2026.09.05 - 2026.09.17)...
+    Raw 1m rows: 12790 | Resampled 5m candles: 2558
+    Date Range: 2026-09-07 00:00:00 to 2026-09-17 21:05:00
+    Signals Generated: 175
+
+[+] Loading & Processing USDCAD (2026.09.05 - 2026.09.17)...
+    Raw 1m rows: 12790 | Resampled 5m candles: 2558
+    Date Range: 2026-09-07 00:00:00 to 2026-09-17 21:05:00
+    Signals Generated: 175
+
+[+] Loading & Processing USDJPY (2026.09.05 - 2026.09.17)...
+    Raw 1m rows: 12790 | Resampled 5m candles: 2558
+    Date Range: 2026-09-07 00:00:00 to 2026-09-17 21:05:00
+    Signals Generated: 202
+
+[+] Loading & Processing AUDUSD (2026.09.05 - 2026.09.17)...
+    Raw 1m rows: 12790 | Resampled 5m candles: 2558
+    Date Range: 2026-09-07 00:00:00 to 2026-09-17 21:05:00
+    Signals Generated: 178
+
+==========================================================================
+                   PAIR PERFORMANCE SUMMARY TABLE                         
+==========================================================================
+  Pair  1m Rows  5m Candles  Signals  Trades  Wins  Losses Win Rate % Profit Factor Max DD % Net Profit ($) Final Balance ($)
+EURUSD    12790        2558      206      29    16      13     55.17%          1.73    4.64%        $+25.20           $225.20
+GBPUSD    12790        2558      175      35    18      17     51.43%          1.56    3.77%        $+25.07           $225.07
+USDCAD    12790        2558      175      28    16      12     57.14%          1.87    4.16%        $+29.55           $229.55
+USDJPY    12790        2558      202      38    20      18     52.63%          1.77    6.46%        $+40.31           $240.31
+AUDUSD    12790        2558      178      29    15      14     51.72%          1.56    7.96%        $+21.77           $221.77
+
+==========================================================================
+                 PORTFOLIO OVERALL BACKTEST SUMMARY                       
+==========================================================================
+Total Portfolio Trades Executed: 159
+Overall Portfolio Win Rate:     53.46% (85 Wins / 74 Losses)
+Portfolio Profit Factor:        1.69
+Net Portfolio Profit:           $+141.63 (+70.82% Return)
+Final Combined Balance:         $341.63
+
+----------------------------------------------------------------------------------------
+Setup #  Setup Name                                    Trades   Wins   Losses   Win Rate %   Net PnL ($)
+----------------------------------------------------------------------------------------
+Setup #              Setup Name  Trades  Wins  Losses Win Rate % Net PnL ($)
+     #1   Liquidity Sweep + FVG       8     1       7     12.50%     $-14.12
+     #2  Liquidity Sweep + IFVG      55    31      24     56.36%     $+57.92
+     #3       ICT Silver Bullet      32    13      19     40.62%      $+8.26
+     #4 Turtle Soup (MSS + FVG)       0     0       0      0.00%      $+0.00
+     #5     OB + FVG Confluence      33    23      10     69.70%     $+63.19
+     #6 Unicorn (Breaker + FVG)       0     0       0      0.00%      $+0.00
+     #9    Breaker Block Retest      31    17      14     54.84%     $+26.38
+    #10        AMD / Power of 3       0     0       0      0.00%      $+0.00
+================================================================------------------------
+

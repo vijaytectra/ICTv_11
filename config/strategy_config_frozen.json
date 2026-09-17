@@ -1,0 +1,33 @@
+{
+  "strategy_name": "ICT_5_Setup_System_Clean_Validation",
+  "version": "1.0.0",
+  "timeframe": "5m",
+  "starting_capital": 200.0,
+  "risk_percent": 1.0,
+  "target_rr": 2.0,
+  "max_slippage_pips": 0.5,
+  "commission_per_lot": 3.50,
+  "max_portfolio_risk_percent": 1.0,
+  "broker_limits": {
+    "min_lot": 0.01,
+    "lot_step": 0.01,
+    "max_lot": 100.00
+  },
+  "indicator_params": {
+    "swing_window": 5,
+    "fvg_min_gap_pips": 2.5,
+    "fvg_lookback": 50,
+    "ob_lookback": 8,
+    "breaker_lookback": 30,
+    "ote_lookback": 30,
+    "sl_buffer_pips": 3.5,
+    "ema_fast": 50,
+    "ema_slow": 200
+  },
+  "breakeven_rules": {
+    "enabled": true,
+    "trigger_r": 1.0,
+    "lock_pips": 0.2
+  },
+  "active_setups": [1, 2, 3, 4, 5, 6, 9, 10]
+}
