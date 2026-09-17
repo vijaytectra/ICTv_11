@@ -8,3 +8,42 @@ Risk per Trade:       1.0% ($2.00)
 Breakeven Rule:       +1.0R Trigger -> +0.2 pips lock
 ==========================================================================
 [+] Loading 1m data & computing causal indicators for GBPUSD...
+[+] Loading 1m data & computing causal indicators for EURUSD...
+[+] Loading 1m data & computing causal indicators for USDJPY...
+[+] Loading 1m data & computing causal indicators for USDCAD...
+[+] Loading 1m data & computing causal indicators for AUDUSD...
+[+] Loading 1m data & computing causal indicators for USDCHF...
+
+Raw Signals Generated:     34995
+Executed Portfolio Trades:   11301
+
+--- CLEAN SETUP PERFORMANCE LEDGER ---
+ setup_id              setup_name  trades  wins  losses  breakevens  true_win_rate  be_rate  profit_factor  expectancy_usd    95_wilson_ci
+        1   Liquidity Sweep + FVG     424   181     156          87          53.71    20.52           3.02          475.01 48.37% - 58.96%
+        2  Liquidity Sweep + IFVG    2870  1475     957         438          60.65    15.26           2.49          469.40 58.69% - 62.57%
+        3       ICT Silver Bullet    1999   892     698         409          56.10    20.46           2.57          488.37 53.65% - 58.52%
+        4 Turtle Soup (MSS + FVG)      28    10      14           4          41.67    14.29           2.45          502.09 24.47% - 61.17%
+        5     OB + FVG Confluence    1063   558     340         165          62.14    15.52           4.53          491.33 58.92% - 65.25%
+        6 Unicorn (Breaker + FVG)      72    41      14          17          74.55    23.61           4.61          763.13  61.7% - 84.19%
+        9    Breaker Block Retest    4842  2436    1888         518          56.34    10.70           2.59          396.03 54.85% - 57.81%
+       10        AMD / Power of 3       3     2       0           1         100.00    33.33          99.00           13.24 34.24% - 100.0%
+
+--- CHRONOLOGICAL OUT-OF-SAMPLE SPLIT VALIDATION ---
+              period  trades  wins  losses  be  true_wr  be_rate   pf  expectancy    net_pnl
+        Train (2024)    4095  1986    1526 583    56.55    14.24 2.62       18.85   77199.65
+   Validation (2025)    4350  2189    1508 653    59.21    15.01 2.75      675.93 2940297.69
+Final OOS (2026 YTD)    2856  1420    1033 403    57.89    14.11 2.57      705.97 2016250.44
+
+--- 10,000 MONTE CARLO BOOTSTRAP RESULTS ---
+  5th Percentile Ending Balance:  $4,442,326.30
+  50th Percentile Ending Balance: $5,029,510.07
+  95th Percentile Ending Balance: $5,649,274.12
+  Median Max Drawdown %:          153.31%
+  95th Percentile Max Drawdown %: 6628.78%
+  95th % Max Consecutive Losses:  17 Losses
+
+Trade Log SHA-256 Hash (Run 1): 6221d10b435b587111cbc831ac5bc0780f5a077e1feed67df2c27173b558fdea
+
+==========================================================================
+                   CLEAN RE-VALIDATION COMPLETE                           
+==========================================================================

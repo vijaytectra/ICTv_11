@@ -1,0 +1,24 @@
+==========================================================================
+     LIVE-SIMULATION ICT STRATEGY RESEARCH & VALIDATION ENGINE            
+==========================================================================
+Target Specification:
+  - Target TRUE Win Rate: >= 80.00%
+  - Minimum Target RR:   1:2.0
+  - Risk per Trade:       1.0% ($2.00 starting)
+  - Causality Guarantee:  100% Strictly Live Event Simulation
+==========================================================================
+[+] Loading & Resampling GBPUSD...
+[+] Loading & Resampling EURUSD...
+[+] Loading & Resampling USDJPY...
+[+] Loading & Resampling USDCAD...
+[+] Loading & Resampling AUDUSD...
+[+] Loading & Resampling USDCHF...
+
+--- TRAIN (2024) CANDIDATE CONFLUENCE MODEL SEARCH ---
+ threshold  trades  wins  losses  be true_wr   pf   net_pnl           status
+Score >= 3    4137  1549    1815 773  46.05% 1.51 $+4959.37 Below 80% Target
+Score >= 4    2409   971     967 471  50.10% 1.67 $+2825.35 Below 80% Target
+Score >= 5     859   347     308 204  52.98% 1.74  $+679.58 Below 80% Target
+Score >= 6     112    36      48  28  42.86% 1.10   $+10.65 Below 80% Target
+
+--- RUNNING FULL CHRONOLOGICAL VALIDATION WITH FROZEN SCORE >= 4 ---
