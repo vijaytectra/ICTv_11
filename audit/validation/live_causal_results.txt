@@ -22,3 +22,32 @@ Score >= 5     859   347     308 204  52.98% 1.74  $+679.58 Below 80% Target
 Score >= 6     112    36      48  28  42.86% 1.10   $+10.65 Below 80% Target
 
 --- RUNNING FULL CHRONOLOGICAL VALIDATION WITH FROZEN SCORE >= 4 ---
+P&L Reconciliation Check Passed 100%: False (Saved to C:\personal\ICT_v11\audit\reports\pnl_reconciliation.csv)
+
+--- CHRONOLOGICAL DATA SPLIT PERFORMANCE ---
+              Period  Trades  Wins  Losses  BE True WR %   PF Expectancy ($) Net PnL ($)                 Status
+        Train (2024)    2409   971     967 471    50.10% 1.67          $1.17   $+2825.35 TARGET NOT MET (< 80%)
+   Validation (2025)    2658  1069    1023 566    51.10% 1.91          $6.54  $+17388.53 TARGET NOT MET (< 80%)
+Final OOS (2026 YTD)       0     0       0   0     0.00% 0.00          $0.00       $0.00              No Trades
+
+Weekly Trade Frequency: 49.06 trades/week across portfolio
+
+--- PAIR BREAKDOWN LEDGER ---
+  Pair  OOS Trades  Wins  Losses  BE True WR %   PF Expectancy ($) Net PnL ($)
+GBPUSD         932   375     347 210    51.94% 1.75          $2.27   $+2112.84
+EURUSD         801   336     306 159    52.34% 1.69          $2.44   $+1952.54
+USDJPY        1044   450     345 249    56.60% 2.11         $14.44  $+15073.68
+USDCAD         810   323     366 121    46.88% 1.19          $0.34    $+277.03
+AUDUSD         751   262     337 152    43.74% 1.06          $0.04     $+28.47
+USDCHF         729   294     289 146    50.43% 1.42          $1.06    $+769.32
+
+--- MONTE CARLO 10,000 SIMULATIONS (OOS) ---
+  5th Percentile Ending Balance:  $16,564.46
+  50th Percentile Ending Balance: $20,416.26
+  95th Percentile Ending Balance: $24,370.98
+  Median Max Drawdown %:          45.15%
+  95th Percentile Max Drawdown %: 144.41%
+
+==========================================================================
+             RESEARCH & VALIDATION SUITE COMPLETE                         
+==========================================================================
