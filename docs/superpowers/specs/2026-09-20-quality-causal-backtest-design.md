@@ -277,3 +277,47 @@ Reference repos used historically for ICT/SMC ideas and frameworks are research 
 | Data | User JForex export to Documents (C + A) |
 
 Brainstorming design sections §1–§3: **user approved**.
+
+---
+
+## 16. Appendix — Reference repos → ICT_v11 (borrow / do not borrow)
+
+**Policy:** Concepts and architecture patterns only. Do **not** vendor these repos, copy license-unclear strategy code wholesale, or replace the causal engine with an un-audited SMC package during the quality-ladder study.
+
+### ICT / SMC concept sources
+
+| Repo | Borrow (ideas / checks) | Do not borrow |
+|------|-------------------------|---------------|
+| **SrsBlack/ict-knowledge-library** | Concept vocabulary for confluence labels (Silver Bullet, AMD/Po3, CE, Judas, killzones, dealing ranges). Use to name filters and report sections correctly. | Treating concept text as proof of edge; auto-generating setups from wiki pages. |
+| **joshyattridge/smart-money-concepts** | Definition checklist: FVG, swings, BOS/CHoCH, OB, liquidity clusters, sessions, retracements. Compare against `ict_indicators.py` / `ICT_REFERENCE_MAPPING.md` for gaps (esp. BOS/CHoCH / MSS). | `pip install smartmoneyconcepts` as production signal source without causality + Bid/Ask audit. |
+| **MobiusQuant/OpenMobius-skill** | Consistent ICT/SMC rule language for agents and docs. | Using it as a trading runtime. |
+| **islero/ICT-NT** | Multi-TF ICT + Turtle Soup on an event engine — later reference for live-parity automation. | Migrating this study onto Nautilus mid-research. |
+| **sixscripts-ai/train-ict** | Only if it provides clear labeled methodology useful for *future* research. | Mixing ML training into the locked confluence-ladder grid. |
+| **dextergsm/ict-trading**, **fallenpheonix23/ict-trading-bot**, **OPKYEI/ICT-Trading**, **futureteck/ICT_Automated_Trading_System**, **zakariab0/ozo** | Optional idea sparks (session filters, alert phrasing). | Copying bot logic, MT5 “auto trade” patterns, or unverified WR claims. |
+
+### Framework / quant sources
+
+| Repo | Borrow | Do not borrow |
+|------|--------|---------------|
+| **nautechsystems/nautilus_trader** | Event-driven discipline, deterministic replay, fill realism, backtest≈live boundary. Informs `event_simulation_engine.py` and loophole battery (L1–L9). | Full rewrite of ICT_v11 into Nautilus for this PASS/FAIL study. |
+| **mementum/backtrader** | Broker/commission mental model (`next()` causality). | Running the 80% grid inside backtrader (too slow / different stack). |
+| **freqtrade/freqtrade** | Later: Telegram alert ops, dry-run, pair whitelist patterns. | Crypto-bot defaults or strategy plugins as ICT edge. |
+| **Lumiwealth/lumibot** | Later: paper→live broker wrapper ideas. | Replacing current backtester now. |
+| **tauricresearch/tradingagents** | Optional multi-agent research UX later. | LLM agents deciding entries for the OOS gate. |
+
+### Already absorbed in ICT_v11 (no need to re-import)
+
+Swings, HTF structure/bias, institutional pools (PDH/PDL/sessions/EQH-EQL), displacement, premium/discount, FVG/IFVG, sweeps, OB, breaker, OTE, killzones/Silver Bullet, AMD/Po3, multi-setup portfolio, Bid/Ask backtest, Telegram alert shell, causality tests.
+
+### Explicit gaps vs references (tracked; only filter-layer this phase)
+
+| Gap | Reference push | This study |
+|-----|----------------|------------|
+| Pure structure bias vs EMA fallback | smc BOS/CHoCH; knowledge-library MSS | Ablation L10 on validate; no silent rewrite of core unless required for causality bugfix |
+| MSS body close after sweep | ICT-NT / knowledge-library | Prefer via existing setups + confluence; no new setup IDs in grid |
+| CE (50% FVG) entry discipline | knowledge-library | Already used in several setups; keep; don’t invent new geometry on OOS |
+| Session / SB quality | smc sessions + ICT SB rules | Hard session filter + score +1 for SB window |
+
+### Own forks (context only)
+
+`vijaytectra/ICTv_11` / `vijayr13233/ICTv_11` — project lineage, not external dependencies.

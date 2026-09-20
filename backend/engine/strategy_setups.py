@@ -306,17 +306,41 @@ def generate_signals_setup_10(df: pd.DataFrame, pair: str, min_rr: float = 2.0) 
                 signals.append({'timestamp': df.index[i].strftime('%Y-%m-%d %H:%M:%S'), 'pair': pair, 'setup_id': 10, 'setup_name': '📈 AMD / Power of 3', 'direction': 'SELL', 'entry': round(entry, 5), 'sl': round(sl, 5), 'tp': round(entry - min_rr*risk, 5), 'rr': min_rr, 'sl_pips': round(risk/pip_size, 1), 'spread_pips': round(df['spread_pips'].iloc[i], 1)})
     return signals
 
-def get_all_setup_signals(df: pd.DataFrame, pair: str, min_rr: float = 2.0) -> List[Dict[str, Any]]:
+SETUP_GENERATORS = {
+    1: generate_signals_setup_1,
+    2: generate_signals_setup_2,
+    3: generate_signals_setup_3,
+    4: generate_signals_setup_4,
+    5: generate_signals_setup_5,
+    6: generate_signals_setup_6,
+    9: generate_signals_setup_9,
+    10: generate_signals_setup_10,
+}
+
+
+def get_all_setup_signals(
+    df: pd.DataFrame,
+    pair: str,
+    min_rr: float = 2.0,
+    active_setups: List[int] = None,
+    return_indicators: bool = False,
+):
+    """
+    Run indicators and generate signals for active setups.
+    If return_indicators=True, returns (signals, df_ind) for confluence scoring.
+    """
     df_ind = run_all_indicators(df, pair)
-    s1 = generate_signals_setup_1(df_ind, pair, min_rr)
-    s2 = generate_signals_setup_2(df_ind, pair, min_rr)
-    s3 = generate_signals_setup_3(df_ind, pair, min_rr)
-    s4 = generate_signals_setup_4(df_ind, pair, min_rr)
-    s5 = generate_signals_setup_5(df_ind, pair, min_rr)
-    s6 = generate_signals_setup_6(df_ind, pair, min_rr)
-    s9 = generate_signals_setup_9(df_ind, pair, min_rr)
-    s10 = generate_signals_setup_10(df_ind, pair, min_rr)
-    
-    all_signals = s1 + s2 + s3 + s4 + s5 + s6 + s9 + s10
-    all_signals.sort(key=lambda x: x['timestamp'])
+    if active_setups is None:
+        active_setups = [1, 2, 3, 4, 5, 6, 9, 10]
+
+    all_signals: List[Dict[str, Any]] = []
+    for setup_id in active_setups:
+        gen = SETUP_GENERATORS.get(int(setup_id))
+        if gen is None:
+            continue
+        all_signals.extend(gen(df_ind, pair, min_rr))
+
+    all_signals.sort(key=lambda x: x["timestamp"])
+    if return_indicators:
+        return all_signals, df_ind
     return all_signals
