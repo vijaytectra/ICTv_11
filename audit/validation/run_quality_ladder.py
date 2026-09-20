@@ -17,15 +17,22 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, ROOT)
 
 from audit.validation.check_jforex_data import check_data_coverage
+from audit.validation.write_quality_ladder_report import (
+    filter_trades_by_spread_p95,
+    run_causality_suite,
+    write_quality_ladder_report,
+)
 from backend.engine.confluence_filters import (
     ConfluenceFilterConfig,
     filter_signals,
     iter_grid_configs,
 )
 from backend.engine.data_loader import load_pair_data, resample_candles
-from backend.engine.metrics import binomial_wilson_ci, evaluate_gates
+from backend.engine.metrics import evaluate_gates
 from backend.engine.portfolio_backtest import run_portfolio
 from backend.engine.strategy_setups import get_all_setup_signals
+import numpy as np
+import pandas as pd
 
 PAIRS = ["EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD", "USDCHF"]
 TRAIN = ("2020-01-01", "2021-12-31")
@@ -164,68 +171,65 @@ def _write_freeze(cfg: ConfluenceFilterConfig, extra: Dict[str, Any]) -> str:
     return digest
 
 
-def _write_report(
-    verdict: str,
-    train_m: Dict[str, Any],
-    val_m: Dict[str, Any],
+def _synthetic_frames() -> Dict[str, Any]:
+    """Tiny smoke frames for pipeline wiring tests (not a real study)."""
+    out = {}
+    for i, pair in enumerate(PAIRS):
+        n = 400
+        times = pd.date_range("2020-01-02", periods=n, freq="5min")
+        base = 1.10 + i * 0.01
+        closes = base + np.cumsum(np.random.default_rng(i).normal(0, 0.0002, n))
+        out[pair] = pd.DataFrame(
+            {
+                "open": closes,
+                "high": closes + 0.0003,
+                "low": closes - 0.0003,
+                "close": closes,
+                "spread_pips": 0.8,
+            },
+            index=times,
+        )
+    return out
+
+
+def _build_loopholes(
+    frames: Dict[str, Any],
+    winner_cfg: ConfluenceFilterConfig,
     oos_m: Dict[str, Any],
-    gates: Dict[str, Any],
-    cfg: ConfluenceFilterConfig,
-    digest: str,
-    kill_log: List[Dict[str, Any]],
-    integrity: Dict[str, Any],
-) -> str:
-    path = os.path.join(ROOT, "audit", "reports", "QUALITY_LADDER_OOS_RESULT.md")
-    ci = binomial_wilson_ci(oos_m.get("wins", 0), oos_m.get("resolved", 0))
-    lines = [
-        f"# Quality Ladder OOS Result — **{verdict}**",
-        "",
-        f"Generated: {datetime.utcnow().isoformat()}Z",
-        f"Config hash: `{digest}`",
-        "",
-        "## Gates (OOS)",
-        "",
-        "| Gate | Value | Threshold | Pass |",
-        "|------|------:|----------:|:----:|",
-        f"| WR | {oos_m.get('wr', 0):.4f} | ≥ 0.80 | {gates['win_rate']['pass']} |",
-        f"| Trades/week | {oos_m.get('trades_per_week', 0):.3f} | ≤ 12.0 | {gates['trades_per_week']['pass']} |",
-        f"| Resolved | {oos_m.get('resolved', 0)} | ≥ 50 | {gates['min_resolved']['pass']} |",
-        "",
-        f"Wilson 95% CI on OOS WR: [{ci[0]:.3f}, {ci[1]:.3f}]",
-        "",
-        "## Period ledger",
-        "",
-        "| Period | WR | Resolved | Trades/week | Net PnL | Max DD% |",
-        "|--------|---:|---------:|------------:|--------:|--------:|",
-        f"| Train | {train_m.get('wr', 0):.4f} | {train_m.get('resolved', 0)} | {train_m.get('trades_per_week', 0):.3f} | {train_m.get('net_pnl', 0):.2f} | {train_m.get('max_drawdown_pct', 0):.2f} |",
-        f"| Val | {val_m.get('wr', 0):.4f} | {val_m.get('resolved', 0)} | {val_m.get('trades_per_week', 0):.3f} | {val_m.get('net_pnl', 0):.2f} | {val_m.get('max_drawdown_pct', 0):.2f} |",
-        f"| OOS | {oos_m.get('wr', 0):.4f} | {oos_m.get('resolved', 0)} | {oos_m.get('trades_per_week', 0):.3f} | {oos_m.get('net_pnl', 0):.2f} | {oos_m.get('max_drawdown_pct', 0):.2f} |",
-        "",
-        "## Frozen filters",
-        "",
-        "```json",
-        json.dumps(_cfg_to_dict(cfg), indent=2),
-        "```",
-        "",
-        "## Kill log (validate solo)",
-        "",
-        "```json",
-        json.dumps(kill_log, indent=2),
-        "```",
-        "",
-        "## Data integrity",
-        "",
-        f"ok={integrity.get('ok')}; errors={integrity.get('errors')}",
-        "",
-        "## Hard stop",
-        "",
-        "If FAIL: do not retune using OOS. See design spec.",
-        "",
-    ]
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    return path
+    capital: float,
+) -> Dict[str, Any]:
+    print("Loophole battery (L1/L7/L10/L16)...", flush=True)
+    l1 = run_causality_suite(ROOT)
+    l7 = filter_trades_by_spread_p95(oos_m.get("trades", []))
+
+    cfg_ema = deepcopy(winner_cfg)
+    cfg_ema.use_ema_bias_fallback = True
+    cfg_htf = deepcopy(winner_cfg)
+    cfg_htf.use_ema_bias_fallback = False
+    val_ema = _run_period(frames, cfg_ema, VAL[0], VAL[1], capital)
+    val_htf = _run_period(frames, cfg_htf, VAL[0], VAL[1], capital)
+    l10 = {
+        "with_ema_wr": val_ema.get("wr"),
+        "htf_only_wr": val_htf.get("wr"),
+        "frozen_uses_ema": winner_cfg.use_ema_bias_fallback,
+    }
+
+    l16 = {}
+    for cap in (200.0, 2000.0, 10000.0):
+        r = _run_period(frames, winner_cfg, OOS_START, datetime.utcnow().strftime("%Y-%m-%d"), cap)
+        l16[str(int(cap))] = {
+            "wr": r.get("wr"),
+            "resolved": r.get("resolved"),
+            "net_pnl": r.get("net_pnl"),
+            "trades_per_week": r.get("trades_per_week"),
+        }
+
+    return {
+        "L1_causality": l1,
+        "L7_spread": l7,
+        "L10_ema_ablation": l10,
+        "L16_capital": l16,
+    }
 
 
 def main() -> None:
@@ -239,20 +243,42 @@ def main() -> None:
         default=64,
         help="Cap grid size (full grid is 64)",
     )
+    parser.add_argument(
+        "--smoke-synthetic",
+        action="store_true",
+        help="Wire-test ladder on synthetic bars (not a PASS/FAIL study)",
+    )
+    parser.add_argument(
+        "--skip-loopholes",
+        action="store_true",
+        help="Skip L1/L7/L10/L16 battery (faster)",
+    )
     args = parser.parse_args()
 
     oos_end = datetime.utcnow().strftime("%Y-%m-%d")
-    print("Checking data integrity...", flush=True)
-    integrity = check_data_coverage(
-        args.data_dir, PAIRS, "2020-01-01", oos_end
-    )
-    if not integrity["ok"]:
-        print("DATA INTEGRITY FAIL — aborting ladder until download is complete.")
-        print(json.dumps(integrity, indent=2))
-        raise SystemExit(2)
 
-    print("Loading 5m frames (full sample_ratio=1.0)...", flush=True)
-    frames = _load_pair_frames(args.data_dir)
+    if args.smoke_synthetic:
+        print("SMOKE MODE: synthetic data only — verdict is NOT a real study.", flush=True)
+        integrity = {"ok": True, "errors": [], "smoke": True}
+        frames = _synthetic_frames()
+        # Narrow dates to synthetic span
+        global TRAIN, VAL, OOS_START
+        TRAIN = ("2020-01-02", "2020-01-02")
+        VAL = ("2020-01-02", "2020-01-02")
+        OOS_START = "2020-01-02"
+        oos_end = "2020-01-02"
+        args.max_grid = min(args.max_grid, 4)
+    else:
+        print("Checking data integrity...", flush=True)
+        integrity = check_data_coverage(
+            args.data_dir, PAIRS, "2020-01-01", oos_end
+        )
+        if not integrity["ok"]:
+            print("DATA INTEGRITY FAIL — aborting ladder until download is complete.")
+            print(json.dumps(integrity, indent=2))
+            raise SystemExit(2)
+        print("Loading 5m frames (full sample_ratio=1.0)...", flush=True)
+        frames = _load_pair_frames(args.data_dir)
 
     grid = iter_grid_configs()[: args.max_grid]
     print(f"Train grid size: {len(grid)}", flush=True)
@@ -267,19 +293,16 @@ def main() -> None:
 
     print(f"Train funnel survivors: {len(train_candidates)}", flush=True)
     if not train_candidates:
-        # Fall back: best train expectancy with tpw <= 12
         ranked = []
         for cfg in grid:
             res = _run_period(frames, cfg, TRAIN[0], TRAIN[1], args.capital)
-            if res["trades_per_week"] <= 12.0:
+            if res["trades_per_week"] <= 12.0 or args.smoke_synthetic:
                 ranked.append((cfg, res))
         ranked.sort(key=lambda x: x[1]["net_pnl"], reverse=True)
-        train_candidates = ranked[:5]
+        train_candidates = ranked[:5] if ranked else [(grid[0], _run_period(frames, grid[0], TRAIN[0], TRAIN[1], args.capital))]
         print(f"Fallback candidates: {len(train_candidates)}", flush=True)
 
-    # Validate selection
     best = None
-    best_val = None
     val_gate_met = False
     for cfg, _ in train_candidates:
         val_res = _run_period(frames, cfg, VAL[0], VAL[1], args.capital)
@@ -293,7 +316,6 @@ def main() -> None:
         )
         if best is None or score > best[0]:
             best = (score, cfg, val_res)
-            best_val = val_res
             val_gate_met = bool(gates["all_pass"])
 
     assert best is not None
@@ -309,6 +331,7 @@ def main() -> None:
             "capital": args.capital,
             "val_gate_met": val_gate_met,
             "kill_log": kill_log,
+            "smoke_synthetic": bool(args.smoke_synthetic),
         },
     )
     print(f"Frozen hash: {digest}", flush=True)
@@ -320,21 +343,40 @@ def main() -> None:
     print("Running OOS once (hard stop after)...", flush=True)
     oos_m = _run_period(frames, winner_cfg, OOS_START, oos_end, args.capital)
     gates = evaluate_gates(oos_m)
-    verdict = "PASS" if gates["all_pass"] else "FAIL"
-    report = _write_report(
-        verdict,
-        train_m,
-        val_m,
-        oos_m,
-        gates,
-        winner_cfg,
-        digest,
-        kill_log,
-        integrity,
+    # Smoke never counts as scientific PASS
+    if args.smoke_synthetic:
+        verdict = "SMOKE_ONLY"
+    else:
+        verdict = "PASS" if gates["all_pass"] else "FAIL"
+
+    loopholes = {}
+    if not args.skip_loopholes and not args.smoke_synthetic:
+        loopholes = _build_loopholes(frames, winner_cfg, oos_m, args.capital)
+    elif args.smoke_synthetic:
+        loopholes = {"L7_spread": filter_trades_by_spread_p95(oos_m.get("trades", []))}
+
+    report_path = os.path.join(ROOT, "audit", "reports", "QUALITY_LADDER_OOS_RESULT.md")
+    os.makedirs(os.path.dirname(report_path), exist_ok=True)
+    report = write_quality_ladder_report(
+        report_path,
+        verdict=verdict,
+        train_m=train_m,
+        val_m=val_m,
+        oos_m=oos_m,
+        gates=gates,
+        filters=_cfg_to_dict(winner_cfg),
+        digest=digest,
+        kill_log=kill_log,
+        integrity=integrity,
+        loopholes=loopholes,
     )
     print(f"VERDICT: {verdict}")
     print(f"Report: {report}")
-    raise SystemExit(0 if verdict == "PASS" else 1)
+    if verdict == "PASS":
+        raise SystemExit(0)
+    if verdict == "SMOKE_ONLY":
+        raise SystemExit(0)
+    raise SystemExit(1)
 
 
 if __name__ == "__main__":
