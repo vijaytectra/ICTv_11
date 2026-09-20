@@ -1,7 +1,7 @@
 # Ops Trade Journal + Dashboard Design
 
 **Date:** 2026-09-20  
-**Status:** Approved in brainstorming (§1–§3); awaiting user review of this file  
+**Status:** User-approved; implementation plan at `docs/superpowers/plans/2026-09-20-ops-trade-journal.md`  
 **Priority track:** Parallel with quality causal ladder (**no live auto-execution**)  
 **Approach:** Journal module + thin API + extend existing FastAPI/`frontend` dashboard  
 
