@@ -1,0 +1,16 @@
+{
+  "geometry_lock_version": "H-2026-09-21",
+  "fvg_law": "B",
+  "cases": [
+    {
+      "name": "bull_wick_gap",
+      "expected_fvg_type_at": 4,
+      "expected_type": 1,
+      "expected_ce": 1.10025
+    }
+  ],
+  "disagreement_vs_smc": [
+    "No future pivot confirmation for FVG validity",
+    "Mitigation is CE touch, not full gap fill"
+  ]
+}

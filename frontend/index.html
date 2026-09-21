@@ -201,6 +201,37 @@
       </div>
     </section>
 
+    <!-- Ops Trade Journal -->
+    <section class="section-container" id="ops-journal-section">
+      <div class="section-header">
+        <h2>Ops Journal</h2>
+        <span class="info-tag">8 active setups • journal only • no auto-orders</span>
+      </div>
+      <div class="ops-summary" id="ops-summary">
+        <div class="ops-stat"><span>Proposed</span><strong id="ops-proposed">0</strong></div>
+        <div class="ops-stat"><span>Taken</span><strong id="ops-taken">0</strong></div>
+        <div class="ops-stat"><span>Skipped</span><strong id="ops-skipped">0</strong></div>
+        <div class="ops-stat"><span>Wins</span><strong id="ops-wins">0</strong></div>
+        <div class="ops-stat"><span>Losses</span><strong id="ops-losses">0</strong></div>
+        <div class="ops-stat"><span>WR</span><strong id="ops-wr">0%</strong></div>
+        <button class="btn btn-secondary" id="btn-ops-refresh">Refresh</button>
+        <a class="btn btn-secondary" id="btn-ops-export" href="/api/journal/export.csv">Export CSV</a>
+      </div>
+      <div class="table-responsive">
+        <table class="data-table" id="ops-table">
+          <thead>
+            <tr>
+              <th>Time</th><th>Pair</th><th>Setup</th><th>Dir</th><th>Status</th>
+              <th>Outcome</th><th>Reason</th><th>Note</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="ops-tbody">
+            <tr><td colspan="9" class="text-center empty-msg">Loading journal…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- Main Content Layout -->
     <div class="two-column-layout">
       <!-- Left Panel -->

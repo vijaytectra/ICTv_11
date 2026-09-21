@@ -18,6 +18,13 @@
     "server": ""
   },
   "data_dir": "C:\\Users\\Vijayakumar R\\Documents",
+  "journal_db_path": "data/trade_journal.db",
+  "geometry_lock_version": "H-2026-09-21",
+  "kz_table": "mentorship_2017",
+  "fvg_require_displacement_candle": true,
+  "require_ote": true,
+  "ote_mode": "soft_score",
+  "liquidity_model": "session_pools",
   "pairs": {
     "tier_a": ["EURUSD", "GBPUSD", "USDJPY"],
     "tier_b": ["USDCAD", "AUDUSD", "USDCHF"],

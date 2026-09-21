@@ -6,9 +6,74 @@ document.addEventListener('DOMContentLoaded', () => {
   const telegramBadge = document.getElementById('telegram-badge');
 
   fetchConfig();
+  loadOpsJournal();
 
   btnRunBacktest.addEventListener('click', runBacktest);
   btnTestTelegram.addEventListener('click', testTelegram);
+  const btnOpsRefresh = document.getElementById('btn-ops-refresh');
+  if (btnOpsRefresh) btnOpsRefresh.addEventListener('click', loadOpsJournal);
+
+  async function loadOpsJournal() {
+    const tbody = document.getElementById('ops-tbody');
+    if (!tbody) return;
+    try {
+      const res = await fetch(`${API_BASE}/journal/today`);
+      if (!res.ok) throw new Error('journal unavailable');
+      const data = await res.json();
+      document.getElementById('ops-proposed').innerText = data.proposed || 0;
+      document.getElementById('ops-taken').innerText = data.taken || 0;
+      document.getElementById('ops-skipped').innerText = data.skipped || 0;
+      document.getElementById('ops-wins').innerText = data.wins || 0;
+      document.getElementById('ops-losses').innerText = data.losses || 0;
+      document.getElementById('ops-wr').innerText = `${data.win_rate_pct || 0}%`;
+      const trades = data.trades || [];
+      if (!trades.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center empty-msg">No journal rows for today.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      trades.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${t.entry_time || ''}</td>
+          <td><strong>${t.pair || ''}</strong></td>
+          <td>#${t.setup_id || ''} ${t.setup_name || ''}</td>
+          <td>${t.direction || ''}</td>
+          <td>${t.status || ''}</td>
+          <td>${t.outcome || ''}</td>
+          <td>${t.reason_code || ''}</td>
+          <td>${t.note || ''}</td>
+          <td class="ops-actions">
+            <button data-act="TAKEN" data-id="${t.id}">Taken</button>
+            <button data-act="SKIPPED" data-id="${t.id}">Skip</button>
+            <button data-act="WIN" data-id="${t.id}">Win</button>
+            <button data-act="LOSS" data-id="${t.id}">Loss</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('button[data-act]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          const act = btn.getAttribute('data-act');
+          const body = {};
+          if (act === 'TAKEN' || act === 'SKIPPED') body.status = act;
+          if (act === 'WIN' || act === 'LOSS') body.outcome = act;
+          if (act === 'WIN' || act === 'LOSS') {
+            const note = prompt('Optional note:');
+            if (note) body.note = note;
+          }
+          await fetch(`${API_BASE}/journal/trades/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          loadOpsJournal();
+        });
+      });
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center empty-msg">Journal offline — start API server.</td></tr>';
+    }
+  }
 
   async function fetchConfig() {
     try {

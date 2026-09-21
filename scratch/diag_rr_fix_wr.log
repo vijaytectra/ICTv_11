@@ -1,0 +1,17 @@
+Loading pairs...
+  EURUSD: 20175 signals 2024+
+  GBPUSD: 22691 signals 2024+
+  USDJPY: 22160 signals 2024+
+
+=== Per-setup EURUSD 2024+ (no confluence) ===
+  setup 1: resolved=862 wr=27.3% excluded=0 net=-9440.45
+  setup 2: resolved=751 wr=41.7% excluded=0 net=23995.6
+  setup 3: resolved=1081 wr=26.1% excluded=0 net=-9824.43
+  setup 4: resolved=1024 wr=32.4% excluded=0 net=-8709.84
+  setup 5: resolved=678 wr=45.7% excluded=0 net=50136.08
+  setup 6: resolved=1505 wr=39.8% excluded=1 net=28185.1
+  setup 9: resolved=1894 wr=42.2% excluded=0 net=140375.91
+  setup 10: resolved=343 wr=39.7% excluded=0 net=2029.5
+
+=== Portfolio 3-pair 2024+ no confluence daycap=5 ===
+  resolved=3508 wr=40.2% excluded=1 tpw=24.69 net=-10000.00

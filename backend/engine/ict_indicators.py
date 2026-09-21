@@ -1,6 +1,14 @@
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
+
+from backend.engine.kz_tables import (
+    KZ_TABLES,
+    DEFAULT_KZ_TABLE,
+    GEOMETRY_LOCK_VERSION,
+    in_window,
+    resolve_kz_table,
+)
 
 def find_swing_points(df: pd.DataFrame, window: int = 5) -> pd.DataFrame:
     """
@@ -62,35 +70,73 @@ def find_htf_structure_and_bias(df: pd.DataFrame) -> pd.DataFrame:
     df.drop(columns=['htf_bias_1h'], inplace=True, errors='ignore')
     return df
 
-def find_institutional_liquidity_pools(df: pd.DataFrame, pip_size: float = 0.0001) -> pd.DataFrame:
+def find_institutional_liquidity_pools(
+    df: pd.DataFrame,
+    pip_size: float = 0.0001,
+    kz_table: Optional[str] = None,
+) -> pd.DataFrame:
     """
     Identifies Major Institutional Liquidity Pools causally in ultra-fast vectorized pandas:
     - Previous Day High (PDH) & Previous Day Low (PDL)
     - Asian Session High (ASH) & Asian Session Low (ASL)
     - London Session High (LSH) & London Session Low (LSL)
     - Equal Highs (EQH) & Equal Lows (EQL) within 1.5 pips
+
+    Asian / London pool windows follow active kz_table (default mentorship_2017).
     """
     df = df.copy()
     times = df.index
-    
+    table_name = resolve_kz_table(kz_table)
+    profile = KZ_TABLES[table_name]
+    df.attrs["kz_table"] = table_name
+    df.attrs["geometry_lock_version"] = GEOMETRY_LOCK_VERSION
+
+    if getattr(times, "tz", None) is not None:
+        ny = times.tz_convert("America/New_York")
+        hours = ny.hour + (ny.minute / 60.0)
+    else:
+        hours = times.hour + (times.minute / 60.0)
+
     daily_df = df.resample('1D').agg({'high': 'max', 'low': 'min'}).shift(1)
     df['pdh'] = df.index.normalize().map(daily_df['high']).astype(float)
     df['pdl'] = df.index.normalize().map(daily_df['low']).astype(float)
-    
-    is_asian = (times.hour >= 0) & (times.hour < 6)
-    ash_series = np.where(is_asian, df['high'], np.nan)
-    asl_series = np.where(is_asian, df['low'], np.nan)
-    
-    df['ash'] = pd.Series(ash_series, index=times).groupby(times.date).transform('max')
-    df['asl'] = pd.Series(asl_series, index=times).groupby(times.date).transform('min')
-    
-    is_london = (times.hour >= 7) & (times.hour < 10)
-    lsh_series = np.where(is_london, df['high'], np.nan)
-    lsl_series = np.where(is_london, df['low'], np.nan)
-    
-    df['lsh'] = pd.Series(lsh_series, index=times).groupby(times.date).transform('max')
-    df['lsl'] = pd.Series(lsl_series, index=times).groupby(times.date).transform('min')
-    
+
+    a_start, a_end = profile["asian"]
+    is_asian = in_window(hours, a_start, a_end, wrap=bool(profile.get("asian_wrap")))
+    # For wrap ranges like 20–24, also include 00:00–00:00 edge of next calendar day
+    # already covered by hour>=20. Mentorship Asia ends at midnight.
+    lp_start, lp_end = profile["london_pool"]
+    is_london = in_window(hours, lp_start, lp_end, wrap=False)
+
+    # Causal expanding session pools via groupby.cummax/cummin (no future leak)
+    # For Asia 20–00, pool day key = session start date (if hour>=20 use today, else prior day)
+    if profile.get("asian_wrap") and a_start >= 12:
+        # session date: before a_start → previous calendar day
+        ny_dates = pd.Series(
+            (times.tz_convert("America/New_York").date if getattr(times, "tz", None) else times.date),
+            index=times,
+        )
+        # bars in wrap Asia after midnight (hour < a_end if wrap end < start) — mentorship ends at 24
+        session_dates = ny_dates
+        if a_end < 24 and profile.get("asian_wrap"):
+            # midnight continuation would use prior day — not used for mentorship 20–24
+            pass
+    else:
+        session_dates = pd.Series(
+            (times.tz_convert("America/New_York").date if getattr(times, "tz", None) else times.date),
+            index=times,
+        )
+    dates = session_dates
+    high_s = pd.Series(df["high"].values, index=times)
+    low_s = pd.Series(df["low"].values, index=times)
+    ash_raw = high_s.where(is_asian)
+    asl_raw = low_s.where(is_asian)
+    lsh_raw = high_s.where(is_london)
+    lsl_raw = low_s.where(is_london)
+    df["ash"] = ash_raw.groupby(dates).cummax().groupby(dates).ffill()
+    df["asl"] = asl_raw.groupby(dates).cummin().groupby(dates).ffill()
+    df["lsh"] = lsh_raw.groupby(dates).cummax().groupby(dates).ffill()
+    df["lsl"] = lsl_raw.groupby(dates).cummin().groupby(dates).ffill()
     eq_tol = 1.5 * pip_size
     sh_s = df['swing_high'] if 'swing_high' in df.columns else pd.Series(np.nan, index=times)
     sl_s = df['swing_low'] if 'swing_low' in df.columns else pd.Series(np.nan, index=times)
@@ -156,42 +202,156 @@ def find_premium_discount_zones(df: pd.DataFrame, lookback: int = 40) -> pd.Data
     df['is_premium'] = closes > eq
     return df
 
-def find_fair_value_gaps(df: pd.DataFrame, min_gap_pips: float = 2.0, pip_size: float = 0.0001) -> pd.DataFrame:
-    """Detects Bullish & Bearish Fair Value Gaps (FVG) at candle close i (Vectorized)."""
+def find_fair_value_gaps(
+    df: pd.DataFrame,
+    min_gap_pips: float = 2.0,
+    pip_size: float = 0.0001,
+    fvg_require_displacement_candle: bool = True,
+) -> pd.DataFrame:
+    """Detects Bullish & Bearish Fair Value Gaps (FVG) at candle close i (Vectorized).
+
+    Locked FVG=B (geometry lock H):
+      3-candle wick gap (bar i = candle 3):
+        Bullish: low[i] > high[i-2]  → gap [high[i-2], low[i]]
+        Bearish: high[i] < low[i-2]  → gap [high[i], low[i-2]]
+      Middle candle (i-1) must be displacement when fvg_require_displacement_candle=True.
+      fvg_ce = (top + bottom) / 2
+    """
     df = df.copy()
     highs = df['high'].values
     lows = df['low'].values
     n = len(df)
-    
+
     fvg_type = np.zeros(n, dtype=int)
     fvg_top = np.full(n, np.nan)
     fvg_bottom = np.full(n, np.nan)
     fvg_size_pips = np.zeros(n)
-    
+    fvg_ce = np.full(n, np.nan)
+
     min_gap_val = min_gap_pips * pip_size
-    
-    bull_gap = (lows - np.roll(highs, 2))
-    bull_mask = (bull_gap >= min_gap_val)
+    high_i2 = np.roll(highs, 2)
+    low_i2 = np.roll(lows, 2)
+
+    bull_gap = lows - high_i2
+    bull_mask = bull_gap >= min_gap_val
     bull_mask[:2] = False
-    
-    bear_gap = (np.roll(highs, 2) - lows)
-    bear_mask = (bear_gap >= min_gap_val)
+
+    bear_gap = low_i2 - highs
+    bear_mask = bear_gap >= min_gap_val
     bear_mask[:2] = False
-    
+
+    if fvg_require_displacement_candle:
+        if "has_displacement" in df.columns:
+            mid_disp = np.roll(df["has_displacement"].astype(bool).values, 1)
+            mid_disp[0] = False
+        else:
+            # fallback: middle candle body ≥ 60% of range
+            opens = df["open"].values
+            closes = df["close"].values
+            body = np.abs(closes - opens)
+            rng = np.maximum(highs - lows, 1e-12)
+            mid_ok = np.roll(body / rng >= 0.60, 1)
+            mid_ok[0] = False
+            mid_disp = mid_ok
+        bull_mask = bull_mask & mid_disp
+        bear_mask = bear_mask & mid_disp
+
     fvg_type[bull_mask] = 1
     fvg_top[bull_mask] = lows[bull_mask]
-    fvg_bottom[bull_mask] = np.roll(highs, 2)[bull_mask]
+    fvg_bottom[bull_mask] = high_i2[bull_mask]
     fvg_size_pips[bull_mask] = bull_gap[bull_mask] / pip_size
-    
+
     fvg_type[bear_mask] = -1
-    fvg_top[bear_mask] = np.roll(highs, 2)[bear_mask]
-    fvg_bottom[bear_mask] = lows[bear_mask]
+    fvg_top[bear_mask] = low_i2[bear_mask]
+    fvg_bottom[bear_mask] = highs[bear_mask]
     fvg_size_pips[bear_mask] = bear_gap[bear_mask] / pip_size
-    
+
+    created = fvg_type != 0
+    fvg_ce[created] = (fvg_top[created] + fvg_bottom[created]) / 2.0
+
     df['fvg_type'] = fvg_type
     df['fvg_top'] = fvg_top
     df['fvg_bottom'] = fvg_bottom
     df['fvg_size_pips'] = fvg_size_pips
+    df['fvg_ce'] = fvg_ce
+    df.attrs["fvg_require_displacement_candle"] = fvg_require_displacement_candle
+    return annotate_fvg_lifecycle(df)
+
+
+def annotate_fvg_lifecycle(df: pd.DataFrame, max_lookforward: int = 200) -> pd.DataFrame:
+    """
+    Causal FVG lifecycle after creation (bar close only):
+      mitigated  = first touch of CE (wick or body)
+      invalidated = body close through far side (not mitigation)
+    Marks events on the bar where they first occur.
+    """
+    df = df.copy()
+    n = len(df)
+    highs = df["high"].values
+    lows = df["low"].values
+    closes = df["close"].values
+    fvg_type = df["fvg_type"].values.astype(int)
+    fvg_top = df["fvg_top"].values
+    fvg_bottom = df["fvg_bottom"].values
+    fvg_ce = df["fvg_ce"].values if "fvg_ce" in df.columns else (fvg_top + fvg_bottom) / 2.0
+
+    mit = np.zeros(n, dtype=bool)
+    inv = np.zeros(n, dtype=bool)
+    # state columns on creation bar: eventually filled when known (causal forward scan only)
+    state = np.array([""] * n, dtype=object)
+
+    open_fvgs: List[Dict[str, Any]] = []
+    for i in range(n):
+        if fvg_type[i] != 0 and not np.isnan(fvg_ce[i]):
+            open_fvgs.append(
+                {
+                    "idx": i,
+                    "dir": int(fvg_type[i]),
+                    "top": float(fvg_top[i]),
+                    "bot": float(fvg_bottom[i]),
+                    "ce": float(fvg_ce[i]),
+                    "done": False,
+                }
+            )
+        still = []
+        for fv in open_fvgs:
+            if fv["done"] or i <= fv["idx"]:
+                if not fv["done"]:
+                    still.append(fv)
+                continue
+            if i - fv["idx"] > max_lookforward:
+                still.append(fv)
+                continue
+            d = fv["dir"]
+            ce = fv["ce"]
+            # mitigation: first CE touch
+            if (lows[i] <= ce <= highs[i]) and state[fv["idx"]] == "":
+                mit[i] = True
+                state[fv["idx"]] = "mitigated"
+                fv["done"] = True
+                still.append(fv)
+                continue
+            # invalidation: far-side body close
+            if d == 1 and closes[i] < fv["bot"]:
+                inv[i] = True
+                if state[fv["idx"]] == "":
+                    state[fv["idx"]] = "invalidated"
+                fv["done"] = True
+                still.append(fv)
+                continue
+            if d == -1 and closes[i] > fv["top"]:
+                inv[i] = True
+                if state[fv["idx"]] == "":
+                    state[fv["idx"]] = "invalidated"
+                fv["done"] = True
+                still.append(fv)
+                continue
+            still.append(fv)
+        open_fvgs = [f for f in still if not f["done"]]
+
+    df["fvg_mitigated"] = mit
+    df["fvg_invalidated"] = inv
+    df["fvg_lifecycle_state"] = state
     return df
 
 def find_inverted_fvgs(df: pd.DataFrame, fvg_history_lookback: int = 50) -> pd.DataFrame:
@@ -249,8 +409,10 @@ def find_liquidity_sweeps(df: pd.DataFrame, lookback: int = 50) -> pd.DataFrame:
     
     c_pdh = df['pdh'].values if 'pdh' in df.columns else np.full(n, np.nan)
     c_pdl = df['pdl'].values if 'pdl' in df.columns else np.full(n, np.nan)
-    c_ash = df['ash'].values if 'ash' in df.columns else np.full(n, np.nan)
-    c_asl = df['asl'].values if 'asl' in df.columns else np.full(n, np.nan)
+    # Shift session pools by 1: expanding ash/asl already includes bar i, which
+    # makes same-bar sweeps of the session extreme impossible / look-ahead-ish.
+    c_ash = pd.Series(df['ash'].values if 'ash' in df.columns else np.full(n, np.nan)).shift(1).values
+    c_asl = pd.Series(df['asl'].values if 'asl' in df.columns else np.full(n, np.nan)).shift(1).values
     
     ssl_pd_sweep = (~np.isnan(c_pdl)) & (lows < c_pdl) & (closes > c_pdl)
     ssl_as_sweep = (~np.isnan(c_asl)) & (lows < c_asl) & (closes > c_asl)
@@ -258,21 +420,29 @@ def find_liquidity_sweeps(df: pd.DataFrame, lookback: int = 50) -> pd.DataFrame:
     bsl_pd_sweep = (~np.isnan(c_pdh)) & (highs > c_pdh) & (closes < c_pdh)
     bsl_as_sweep = (~np.isnan(c_ash)) & (highs > c_ash) & (closes < c_ash)
     
+    sweep_extreme = np.full(n, np.nan)  # wick extreme of the sweep candle (for SL)
+
     sweep_type[ssl_pd_sweep] = 1
     sweep_level[ssl_pd_sweep] = c_pdl[ssl_pd_sweep]
+    sweep_extreme[ssl_pd_sweep] = lows[ssl_pd_sweep]
     sweep_quality[ssl_pd_sweep] = 2
-    
-    sweep_type[ssl_as_sweep & (sweep_type == 0)] = 1
-    sweep_level[ssl_as_sweep & (sweep_type == 0)] = c_asl[ssl_as_sweep & (sweep_type == 0)]
-    sweep_quality[ssl_as_sweep & (sweep_quality == 0)] = 2
-    
+
+    m_ssl_as = ssl_as_sweep & (sweep_type == 0)
+    sweep_type[m_ssl_as] = 1
+    sweep_level[m_ssl_as] = c_asl[m_ssl_as]
+    sweep_extreme[m_ssl_as] = lows[m_ssl_as]
+    sweep_quality[m_ssl_as] = 2
+
     sweep_type[bsl_pd_sweep] = -1
     sweep_level[bsl_pd_sweep] = c_pdh[bsl_pd_sweep]
+    sweep_extreme[bsl_pd_sweep] = highs[bsl_pd_sweep]
     sweep_quality[bsl_pd_sweep] = 2
-    
-    sweep_type[bsl_as_sweep & (sweep_type == 0)] = -1
-    sweep_level[bsl_as_sweep & (sweep_level == 0)] = c_ash[bsl_as_sweep & (sweep_level == 0)]
-    sweep_quality[bsl_as_sweep & (sweep_quality == 0)] = 2
+
+    m_bsl_as = bsl_as_sweep & (sweep_type == 0)
+    sweep_type[m_bsl_as] = -1
+    sweep_level[m_bsl_as] = c_ash[m_bsl_as]
+    sweep_extreme[m_bsl_as] = highs[m_bsl_as]
+    sweep_quality[m_bsl_as] = 2
     
     sw_l = pd.Series(df['swing_low'].values).ffill().shift(1).values
     sw_h = pd.Series(df['swing_high'].values).ffill().shift(1).values
@@ -282,14 +452,17 @@ def find_liquidity_sweeps(df: pd.DataFrame, lookback: int = 50) -> pd.DataFrame:
     
     sweep_type[minor_ssl] = 1
     sweep_level[minor_ssl] = sw_l[minor_ssl]
+    sweep_extreme[minor_ssl] = lows[minor_ssl]
     sweep_quality[minor_ssl] = 1
     
     sweep_type[minor_bsl] = -1
     sweep_level[minor_bsl] = sw_h[minor_bsl]
+    sweep_extreme[minor_bsl] = highs[minor_bsl]
     sweep_quality[minor_bsl] = 1
     
     df['sweep_type'] = sweep_type
     df['sweep_level'] = sweep_level
+    df['sweep_extreme'] = sweep_extreme
     df['sweep_quality'] = sweep_quality
     return df
 
@@ -404,18 +577,40 @@ def find_ote_zones(df: pd.DataFrame, lookback: int = 30) -> pd.DataFrame:
     df['ote_786'] = np.where(ote_type == 1, bull_786, np.where(ote_type == -1, bear_786, np.nan))
     return df
 
-def tag_killzones(df: pd.DataFrame) -> pd.DataFrame:
-    """Tags ICT session killzone windows based on NY time (EST)."""
+def tag_killzones(df: pd.DataFrame, kz_table: Optional[str] = None) -> pd.DataFrame:
+    """Tags ICT session killzone windows on America/New_York clock (index must be NY).
+
+    Default kz_table=mentorship_2017 (Gap Closure H lock).
+    """
     df = df.copy()
     times = df.index
-    
-    hours = times.hour + (times.minute / 60.0)
-    
-    df['is_sb_ny_am'] = (hours >= 10.0) & (hours < 11.0)
-    df['is_sb_ny_pm'] = (hours >= 15.0) & (hours < 16.0)
-    df['is_sb_london'] = (hours >= 3.0) & (hours < 4.0)
-    df['is_silver_bullet'] = df['is_sb_ny_am'] | df['is_sb_ny_pm'] | df['is_sb_london']
-    df['is_london_kz'] = (hours >= 2.0) & (hours < 5.0)
-    df['is_ny_kz'] = (hours >= 7.0) & (hours < 10.0)
-    df['is_asian_range'] = (hours >= 20.0) | (hours < 0.0)
+    table_name = resolve_kz_table(kz_table or df.attrs.get("kz_table"))
+    profile = KZ_TABLES[table_name]
+    df.attrs["kz_table"] = table_name
+
+    if getattr(times, "tz", None) is not None:
+        hours = times.tz_convert("America/New_York").hour + (
+            times.tz_convert("America/New_York").minute / 60.0
+        )
+    else:
+        hours = times.hour + (times.minute / 60.0)
+
+    a_start, a_end = profile["asian"]
+    df["is_asian_range"] = in_window(hours, a_start, a_end, wrap=bool(profile.get("asian_wrap")))
+
+    l_start, l_end = profile["london_kz"]
+    df["is_london_kz"] = in_window(hours, l_start, l_end, wrap=False)
+
+    n_start, n_end = profile["ny_kz"]
+    df["is_ny_kz"] = in_window(hours, n_start, n_end, wrap=False)
+
+    sb_mask = np.zeros(len(df), dtype=bool)
+    for s_start, s_end in profile["sb"]:
+        sb_mask |= in_window(hours, s_start, s_end, wrap=False)
+    # Named SB flags for attribution (first three windows)
+    sb_wins = profile["sb"]
+    df["is_sb_london"] = in_window(hours, sb_wins[0][0], sb_wins[0][1]) if len(sb_wins) > 0 else False
+    df["is_sb_ny_am"] = in_window(hours, sb_wins[1][0], sb_wins[1][1]) if len(sb_wins) > 1 else False
+    df["is_sb_ny_pm"] = in_window(hours, sb_wins[2][0], sb_wins[2][1]) if len(sb_wins) > 2 else False
+    df["is_silver_bullet"] = sb_mask
     return df

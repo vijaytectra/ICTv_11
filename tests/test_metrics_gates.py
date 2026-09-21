@@ -37,16 +37,23 @@ def test_trades_per_week():
 
 
 def test_evaluate_gates_pass():
-    metrics = {"wr": 0.82, "trades_per_week": 9.0, "resolved": 60}
+    metrics = {"wr": 0.82, "trades_per_week": 10.5, "resolved": 60}
     g = evaluate_gates(metrics)
     assert g["all_pass"] is True
 
 
 def test_evaluate_gates_fail_wr():
-    metrics = {"wr": 0.70, "trades_per_week": 9.0, "resolved": 60}
+    metrics = {"wr": 0.70, "trades_per_week": 10.5, "resolved": 60}
     g = evaluate_gates(metrics)
     assert g["all_pass"] is False
     assert g["win_rate"]["pass"] is False
+
+
+def test_evaluate_gates_fail_min_tpw():
+    metrics = {"wr": 0.85, "trades_per_week": 8.0, "resolved": 60}
+    g = evaluate_gates(metrics)
+    assert g["all_pass"] is False
+    assert g["trades_per_week_min"]["pass"] is False
 
 
 def test_wilson_ci_bounds():

@@ -61,7 +61,25 @@ class TelegramAlertBot:
 <b>Time:</b> {signal['timestamp']} EST
 ----------------------------------------------
 ⚠️ <i>Check your chart and execute manual trade if conditions hold.</i>"""
-        return self.send_message(message)
+        ok = self.send_message(message)
+        if ok:
+            try:
+                from backend.journal import JournalStore
+                import json as _json
+                import os as _os
+                cfg_path = _os.path.join(
+                    _os.path.dirname(__file__), "..", "..", "config", "config.json"
+                )
+                db = "data/trade_journal.db"
+                if _os.path.exists(cfg_path):
+                    with open(cfg_path, "r", encoding="utf-8") as f:
+                        db = _json.load(f).get("journal_db_path", db)
+                root = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "..", ".."))
+                path = db if _os.path.isabs(db) else _os.path.join(root, db)
+                JournalStore(path).insert_proposed_from_alert(signal)
+            except Exception as e:
+                logger.warning(f"Journal PROPOSED insert failed (non-fatal): {e}")
+        return ok
 
     def send_test_message(self) -> bool:
         """Sends a test message to verify Telegram setup."""

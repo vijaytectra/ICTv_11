@@ -17,6 +17,7 @@ def compute_win_rate(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
         elif outcome == "LOSS":
             losses += 1
         else:
+            # BREAKEVEN / FLAT / TIME_EXIT / unknown — excluded from WR denominator
             excluded += 1
     resolved = wins + losses
     wr = (wins / resolved) if resolved > 0 else 0.0
@@ -79,6 +80,7 @@ def evaluate_gates(
     metrics: Dict[str, Any],
     min_wr: float = 0.80,
     max_tpw: float = 12.0,
+    min_tpw: float = 10.0,
     min_resolved: int = 50,
 ) -> Dict[str, Any]:
     wr = float(metrics.get("wr", 0.0))
@@ -86,10 +88,21 @@ def evaluate_gates(
     resolved = int(metrics.get("resolved", 0))
     gates = {
         "win_rate": {"value": wr, "threshold": min_wr, "pass": wr >= min_wr},
-        "trades_per_week": {
+        "trades_per_week_max": {
             "value": tpw,
             "threshold": max_tpw,
             "pass": tpw <= max_tpw,
+        },
+        "trades_per_week_min": {
+            "value": tpw,
+            "threshold": min_tpw,
+            "pass": tpw >= min_tpw,
+        },
+        # Back-compat alias used by older report/selection code
+        "trades_per_week": {
+            "value": tpw,
+            "threshold": max_tpw,
+            "pass": (tpw <= max_tpw) and (tpw >= min_tpw),
         },
         "min_resolved": {
             "value": resolved,
@@ -97,5 +110,16 @@ def evaluate_gates(
             "pass": resolved >= min_resolved,
         },
     }
-    gates["all_pass"] = all(g["pass"] for g in gates.values() if isinstance(g, dict) and "pass" in g)
+    gates["all_pass"] = all(
+        g["pass"]
+        for k, g in gates.items()
+        if isinstance(g, dict) and "pass" in g and k != "trades_per_week"
+    )
+    # all_pass uses min/max separately; alias must not double-count
+    gates["all_pass"] = (
+        gates["win_rate"]["pass"]
+        and gates["trades_per_week_max"]["pass"]
+        and gates["trades_per_week_min"]["pass"]
+        and gates["min_resolved"]["pass"]
+    )
     return gates

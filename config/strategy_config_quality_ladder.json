@@ -1,0 +1,103 @@
+{
+  "breakeven_rules": {
+    "enabled": false
+  },
+  "commission_per_lot": 3.5,
+  "dates": {
+    "oos_start": "2024-01-01",
+    "train": [
+      "2020-01-01",
+      "2021-12-31"
+    ],
+    "validate": [
+      "2022-01-01",
+      "2023-12-31"
+    ]
+  },
+  "filters": {
+    "active_setups": [
+      1
+    ],
+    "max_trades_per_day": 1,
+    "min_confluence_score": 5,
+    "pdh_pdl_touch_pips": 5.0,
+    "require_displacement": false,
+    "require_pdh_pdl_touch": false,
+    "require_recent_sweep": false,
+    "use_ema_bias_fallback": true
+  },
+  "gates": {
+    "max_trades_per_day": 5,
+    "max_trades_per_week": 12.0,
+    "min_trades_per_week": 10.0,
+    "min_wr": 0.8
+  },
+  "kill_log": [
+    {
+      "kept": false,
+      "net_pnl": -62.2514765096561,
+      "resolved": 785,
+      "setup_id": 1,
+      "wr": 0.38089171974522296
+    },
+    {
+      "kept": false,
+      "net_pnl": 3079.538340732623,
+      "resolved": 962,
+      "setup_id": 2,
+      "wr": 0.49584199584199584
+    },
+    {
+      "kept": false,
+      "net_pnl": -158.83156762998055,
+      "resolved": 989,
+      "setup_id": 3,
+      "wr": 0.3356926188068756
+    },
+    {
+      "kept": false,
+      "net_pnl": -101.63800476255075,
+      "resolved": 542,
+      "setup_id": 4,
+      "wr": 0.37822878228782286
+    },
+    {
+      "kept": false,
+      "net_pnl": 218350.33884612785,
+      "resolved": 953,
+      "setup_id": 5,
+      "wr": 0.5708289611752361
+    },
+    {
+      "kept": false,
+      "net_pnl": -28.662460188187424,
+      "resolved": 582,
+      "setup_id": 6,
+      "wr": 0.4175257731958763
+    },
+    {
+      "kept": false,
+      "net_pnl": -24.61593082961781,
+      "resolved": 834,
+      "setup_id": 9,
+      "wr": 0.4304556354916067
+    },
+    {
+      "kept": false,
+      "net_pnl": -4.603417715161299,
+      "resolved": 182,
+      "setup_id": 10,
+      "wr": 0.4175824175824176
+    }
+  ],
+  "max_portfolio_open": 3,
+  "max_slippage_pips": 0.5,
+  "max_trades_per_day": 5,
+  "risk_percent": 1.0,
+  "starting_capital": 200.0,
+  "strategy_name": "ICT_Quality_Confluence_Ladder",
+  "target_rr": 2.0,
+  "timeframe": "5m",
+  "val_gate_met": false,
+  "version": "1.0.0"
+}

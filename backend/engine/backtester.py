@@ -26,6 +26,22 @@ def execute_backtest(
     - Conservative Intrabar Ambiguity resolution (SL evaluated first).
     - Unique trade ledger accounting.
     """
+    if len(df) == 0:
+        return {
+            "pair": pair,
+            "starting_balance": starting_balance,
+            "ending_balance": starting_balance,
+            "net_profit": 0.0,
+            "total_trades": 0,
+            "winning_trades": 0,
+            "losing_trades": 0,
+            "breakeven_trades": 0,
+            "flat_trades": 0,
+            "true_win_rate_pct": 0.0,
+            "trades": [],
+            "equity_curve": [],
+        }
+
     pip_size = get_pip_size(pair)
     balance = starting_balance
     peak_balance = starting_balance
@@ -46,8 +62,12 @@ def execute_backtest(
         contract_size = 100000
         lot_pip_value = 10.0  # $10/pip per 1.0 lot for FX standard pairs
         
-    df_times = list(df.index)
-    time_to_idx = {t.strftime('%Y-%m-%d %H:%M:%S'): i for i, t in enumerate(df_times)}
+    # Vectorized label map only (avoid list(df.index) on huge frames)
+    labels = df.index.strftime("%Y-%m-%d %H:%M:%S")
+    time_to_idx = {t: i for i, t in enumerate(labels)}
+    # Lazy timestamp formatting for exits
+    def _fmt(i: int) -> str:
+        return labels[i]
     
     highs = df['high'].values
     lows = df['low'].values
@@ -62,108 +82,133 @@ def execute_backtest(
         if sig_time not in time_to_idx:
             continue
             
-        entry_idx = time_to_idx[sig_time]
-        if entry_idx <= active_until_idx:
+        signal_idx = time_to_idx[sig_time]
+        if signal_idx <= active_until_idx:
             continue  # Max open trades per pair enforcement
             
-        entry_price = sig['entry']
-        sl_price = sig['sl']
-        tp_price = sig['tp']
+        limit_price = float(sig['entry'])
+        sl_price = float(sig['sl'])
         direction = sig['direction']
+        target_rr = float(sig.get('rr', 2.0))
         
-        # Risk & Stop Distance
+        # Risk from signal geometry (for lot sizing)
         risk_amount = balance * (risk_percent / 100.0)
-        sl_distance_pips = abs(entry_price - sl_price) / pip_size
+        sig_risk = abs(limit_price - sl_price)
+        sl_distance_pips = sig_risk / pip_size
         if sl_distance_pips < 0.5:
             continue
             
-        # Calculate Lot Size bounded by broker specifications
         raw_lots = risk_amount / (sl_distance_pips * lot_pip_value)
         stepped_lots = round(raw_lots / lot_step) * lot_step
         lot_size = max(min_lot, min(max_lot, round(stepped_lots, 2)))
         
-        # Commission calculation ($3.50 round turn per lot -> $1.75 entry, $1.75 exit)
         commission_entry = (lot_size * commission_per_lot) / 2.0
         commission_exit = (lot_size * commission_per_lot) / 2.0
         total_commission = commission_entry + commission_exit
         
-        # Slippage calculations
         entry_slippage_pips = max_slippage_pips
         exit_slippage_pips = max_slippage_pips
         entry_slippage_val = entry_slippage_pips * pip_size
         exit_slippage_val = exit_slippage_pips * pip_size
-        
-        spread_entry_pips = spread_pips_arr[entry_idx]
-        spread_entry_val = spread_entry_pips * pip_size
-        
-        # Bid / Ask Execution Mechanics
+
+        # ---------------------------------------------------------------
+        # LIMIT FILL (ICT CE / midpoint entries are LIMITS, not markets)
+        # Signal known at close of signal_idx → order active from next bar.
+        # BUY fills when Ask trades at/through limit: bid_low + spread <= limit
+        # SELL fills when Bid trades at/through limit: high >= limit
+        # Unfilled within window → NO TRADE (do not count in WR)
+        # ---------------------------------------------------------------
+        max_fill_wait = min(len(df), signal_idx + 1 + 72)  # 6h on 5m
+        fill_idx = None
+        for k in range(signal_idx + 1, max_fill_wait):
+            spread_k = float(spread_pips_arr[k]) * pip_size
+            if direction == 'BUY':
+                ask_low = lows[k] + spread_k
+                if ask_low <= limit_price:
+                    fill_idx = k
+                    break
+            else:
+                if highs[k] >= limit_price:
+                    fill_idx = k
+                    break
+
+        if fill_idx is None:
+            continue  # limit never touched — skip (correct ICT behavior)
+
+        spread_entry_pips = float(spread_pips_arr[fill_idx])
+        # Fill at working limit ± slippage (do NOT re-add full spread on top of limit)
         if direction == 'BUY':
-            # BUY entry executed at Ask price = Bid + spread
-            actual_entry = entry_price + spread_entry_val + entry_slippage_val
+            actual_entry = limit_price + entry_slippage_val
         else:
-            # SELL entry executed at Bid price
-            actual_entry = entry_price - entry_slippage_val
-            
-        initial_risk_dist = abs(actual_entry - sl_price)
+            actual_entry = limit_price - entry_slippage_val
+
+        # Preserve fixed 1:2 from fill to structural SL
         current_sl = sl_price
-        current_tp = tp_price
+        if direction == 'BUY':
+            fill_risk = actual_entry - current_sl
+            if fill_risk <= 0:
+                continue
+            current_tp = actual_entry + target_rr * fill_risk
+        else:
+            fill_risk = current_sl - actual_entry
+            if fill_risk <= 0:
+                continue
+            current_tp = actual_entry - target_rr * fill_risk
+
+        initial_risk_dist = fill_risk
         be_triggered = False
-        
-        # Forward simulate price action
         outcome = None
         exit_price = actual_entry
-        exit_idx = entry_idx
-        exit_time = sig_time
+        exit_idx = fill_idx
+        exit_time = _fmt(fill_idx)
         is_ambiguous = False
         spread_exit_pips = spread_entry_pips
+        timed_out = False
+        entry_time = _fmt(fill_idx)
         
-        max_look_ahead = min(len(df), entry_idx + 1440)  # max 24h forward simulation
+        max_look_ahead = min(len(df), fill_idx + 1440)  # max 24h after fill
         
-        for k in range(entry_idx + 1, max_look_ahead):
+        for k in range(fill_idx, max_look_ahead):
+            # On fill bar, only manage after fill; same-bar SL/TP: SL first (conservative)
             curr_high = highs[k]
             curr_low = lows[k]
             curr_spread_pips = spread_pips_arr[k]
             curr_spread_val = curr_spread_pips * pip_size
             
-            # Bid prices (for BUY exits & SELL SL/TP evaluations)
             bid_high = curr_high
             bid_low = curr_low
-            # Ask prices (for SELL exits & BUY evaluations)
             ask_high = curr_high + curr_spread_val
             ask_low = curr_low + curr_spread_val
             
             if direction == 'BUY':
-                # Check Breakeven trigger (+1.0R move)
                 if enable_breakeven and not be_triggered:
                     if bid_high >= (actual_entry + initial_risk_dist):
                         current_sl = actual_entry + (0.2 * pip_size)
                         be_triggered = True
                         
-                # Check Intrabar Ambiguity (both SL & TP hit in same candle)
                 sl_hit = (bid_low <= current_sl)
                 tp_hit = (bid_high >= current_tp)
                 
                 if sl_hit and tp_hit:
                     is_ambiguous = True
-                    # Conservative handling: SL evaluated first
                     outcome = 'BREAKEVEN' if be_triggered else 'LOSS'
                     exit_price = current_sl - exit_slippage_val
                     exit_idx = k
-                    exit_time = df_times[k].strftime('%Y-%m-%d %H:%M:%S')
+                    exit_time = _fmt(k)
                     spread_exit_pips = curr_spread_pips
                     break
                 elif sl_hit:
                     outcome = 'BREAKEVEN' if be_triggered else 'LOSS'
                     exit_price = current_sl - exit_slippage_val
                     exit_idx = k
-                    exit_time = df_times[k].strftime('%Y-%m-%d %H:%M:%S')
+                    exit_time = _fmt(k)
                     spread_exit_pips = curr_spread_pips
                     break
                 elif tp_hit:
                     outcome = 'WIN'
                     exit_price = current_tp
                     exit_idx = k
-                    exit_time = df_times[k].strftime('%Y-%m-%d %H:%M:%S')
+                    exit_time = _fmt(k)
                     spread_exit_pips = curr_spread_pips
                     break
                     
@@ -181,37 +226,43 @@ def execute_backtest(
                     outcome = 'BREAKEVEN' if be_triggered else 'LOSS'
                     exit_price = current_sl + exit_slippage_val
                     exit_idx = k
-                    exit_time = df_times[k].strftime('%Y-%m-%d %H:%M:%S')
+                    exit_time = _fmt(k)
                     spread_exit_pips = curr_spread_pips
                     break
                 elif sl_hit:
                     outcome = 'BREAKEVEN' if be_triggered else 'LOSS'
                     exit_price = current_sl + exit_slippage_val
                     exit_idx = k
-                    exit_time = df_times[k].strftime('%Y-%m-%d %H:%M:%S')
+                    exit_time = _fmt(k)
                     spread_exit_pips = curr_spread_pips
                     break
                 elif tp_hit:
                     outcome = 'WIN'
                     exit_price = current_tp
                     exit_idx = k
-                    exit_time = df_times[k].strftime('%Y-%m-%d %H:%M:%S')
+                    exit_time = _fmt(k)
                     spread_exit_pips = curr_spread_pips
                     break
                     
         if outcome is None:
-            # Market exit at end of window
             exit_idx = max_look_ahead - 1
             exit_price = closes[exit_idx]
-            exit_time = df_times[exit_idx].strftime('%Y-%m-%d %H:%M:%S')
-            pnl_pips = (exit_price - actual_entry) / pip_size if direction == 'BUY' else (actual_entry - exit_price) / pip_size
-            outcome = 'WIN' if pnl_pips > 0 else 'LOSS'
+            exit_time = _fmt(exit_idx)
             spread_exit_pips = spread_pips_arr[exit_idx]
+            timed_out = True
+            # Gate mode (no BE): timeouts are FLAT — never invent WIN/LOSS from close
+            if enable_breakeven:
+                if direction == 'BUY':
+                    pnl_pips = (exit_price - actual_entry) / pip_size
+                else:
+                    pnl_pips = (actual_entry - exit_price) / pip_size
+                outcome = 'WIN' if pnl_pips > 0 else 'LOSS'
+            else:
+                outcome = 'FLAT'
             
         active_until_idx = exit_idx
         trade_counter += 1
         
-        # PnL calculations
         if direction == 'BUY':
             pnl_pips = (exit_price - actual_entry) / pip_size
         else:
@@ -235,25 +286,31 @@ def execute_backtest(
         
         trades_executed.append({
             'trade_id': trade_id,
-            'timestamp_entry': sig_time,
+            'timestamp_entry': entry_time,
+            'timestamp_signal': sig_time,
             'timestamp_exit': exit_time,
             'pair': pair,
             'setup_id': sig['setup_id'],
             'setup_name': sig['setup_name'],
             'direction': direction,
             'entry_price': round(actual_entry, 5),
-            'sl_price': round(sl_price, 5),
-            'tp_price': round(tp_price, 5),
+            'sl_price': round(current_sl, 5),
+            'tp_price': round(current_tp, 5),
+            'signal_entry': round(limit_price, 5),
+            'signal_sl': round(sl_price, 5),
             'exit_price': round(exit_price, 5),
             'lot_size': lot_size,
+            'rr': target_rr,
             'outcome': outcome,
+            'timed_out': timed_out,
+            'limit_fill': True,
             'is_breakeven': be_triggered,
             'is_ambiguous': is_ambiguous,
             'entry_slippage_pips': entry_slippage_pips,
             'exit_slippage_pips': exit_slippage_pips,
             'total_slippage_pips': entry_slippage_pips + exit_slippage_pips,
             'spread_at_entry_pips': round(spread_entry_pips, 2),
-            'spread_at_exit_pips': round(spread_exit_pips, 2),
+            'spread_at_exit_pips': round(float(spread_exit_pips), 2),
             'commission_entry': round(commission_entry, 2),
             'commission_exit': round(commission_exit, 2),
             'total_commission': round(total_commission, 2),
@@ -272,12 +329,14 @@ def execute_backtest(
     winning_trades = [t for t in trades_executed if t['outcome'] == 'WIN']
     losing_trades = [t for t in trades_executed if t['outcome'] == 'LOSS']
     be_trades = [t for t in trades_executed if t['outcome'] == 'BREAKEVEN']
+    flat_trades = [t for t in trades_executed if t['outcome'] == 'FLAT']
     
     num_wins = len(winning_trades)
     num_losses = len(losing_trades)
     num_be = len(be_trades)
+    num_flat = len(flat_trades)
     
-    # Conventional True Win Rate (BE NOT counted as win)
+    # Conventional True Win Rate (BE/FLAT NOT counted as win)
     decisive_trades = num_wins + num_losses
     true_win_rate = (num_wins / decisive_trades * 100.0) if decisive_trades > 0 else 0.0
     be_rate = (num_be / total_trades * 100.0) if total_trades > 0 else 0.0
@@ -299,6 +358,7 @@ def execute_backtest(
         'winning_trades': num_wins,
         'losing_trades': num_losses,
         'breakeven_trades': num_be,
+        'flat_trades': num_flat,
         'true_win_rate_pct': round(true_win_rate, 2),
         'be_rate_pct': round(be_rate, 2),
         'profit_factor': round(profit_factor, 2),

@@ -1,0 +1,25 @@
+{
+  "geometry_lock_version": "H-2026-09-21",
+  "kz_table": "mentorship_2017",
+  "fvg_require_displacement_candle": true,
+  "fvg_law": "B",
+  "require_ote": true,
+  "ote_mode": "soft_score",
+  "liquidity_model": "session_pools",
+  "min_rr": 2.0,
+  "risk_percent": 1.0,
+  "active_setups": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    9,
+    10
+  ],
+  "no_be_for_gates": true,
+  "scope": "H1-H6",
+  "oos_status": "NOT_RUN_THIS_PASS",
+  "config_hash": "7917a2f1603691cd"
+}

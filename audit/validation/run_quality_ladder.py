@@ -39,6 +39,9 @@ TRAIN = ("2020-01-01", "2021-12-31")
 VAL = ("2022-01-01", "2023-12-31")
 OOS_START = "2024-01-01"
 
+# pair -> (all_setup_signals, df_with_indicators) — built once per ladder run
+_SIGNAL_CACHE: Dict[str, Tuple[List[Dict[str, Any]], Any]] = {}
+
 
 def _cfg_to_dict(cfg: ConfluenceFilterConfig) -> Dict[str, Any]:
     return {
@@ -56,10 +59,27 @@ def _cfg_to_dict(cfg: ConfluenceFilterConfig) -> Dict[str, Any]:
 def _load_pair_frames(data_dir: str) -> Dict[str, Any]:
     out = {}
     for pair in PAIRS:
+        print(f"  load {pair}...", flush=True)
         raw = load_pair_data(data_dir, pair, sample_ratio=1.0)
         df5 = resample_candles(raw, "5m")
         out[pair] = df5
     return out
+
+
+def _build_signal_cache(frames: Dict[str, Any]) -> None:
+    """Run indicators + all setups once per pair (huge speedup vs per-grid redo)."""
+    _SIGNAL_CACHE.clear()
+    for pair, df in frames.items():
+        print(f"  cache signals {pair}...", flush=True)
+        raw_sigs, df_ind = get_all_setup_signals(
+            df,
+            pair,
+            min_rr=2.0,
+            active_setups=None,
+            return_indicators=True,
+        )
+        _SIGNAL_CACHE[pair] = (raw_sigs, df_ind)
+        print(f"    {pair}: {len(raw_sigs)} raw signals", flush=True)
 
 
 def _signals_for_period(
@@ -68,20 +88,17 @@ def _signals_for_period(
     start: str,
     end: str,
 ) -> Dict[str, List[Dict[str, Any]]]:
+    if not _SIGNAL_CACHE:
+        _build_signal_cache(frames)
+    active = {int(s) for s in cfg.active_setups}
     by_pair: Dict[str, List[Dict[str, Any]]] = {}
-    for pair, df in frames.items():
-        raw_sigs, df_ind = get_all_setup_signals(
-            df,
-            pair,
-            min_rr=2.0,
-            active_setups=cfg.active_setups,
-            return_indicators=True,
-        )
-        # Restrict raw to period before filter (cheap)
+    for pair in frames:
+        raw_all, df_ind = _SIGNAL_CACHE[pair]
         raw_sigs = [
             s
-            for s in raw_sigs
-            if start[:10] <= s["timestamp"][:10] <= end[:10]
+            for s in raw_all
+            if int(s["setup_id"]) in active
+            and start[:10] <= s["timestamp"][:10] <= end[:10]
         ]
         by_pair[pair] = filter_signals(df_ind, raw_sigs, pair, cfg)
     return by_pair
@@ -94,8 +111,9 @@ def _run_period(
     end: str,
     capital: float,
 ) -> Dict[str, Any]:
+    t0 = datetime.now()
     sigs = _signals_for_period(frames, cfg, start, end)
-    return run_portfolio(
+    result = run_portfolio(
         frames,
         sigs,
         start=start,
@@ -103,8 +121,18 @@ def _run_period(
         starting_balance=capital,
         risk_percent=1.0,
         max_portfolio_open=3,
+        max_trades_per_day=5,
         enable_breakeven=False,
     )
+    dt = (datetime.now() - t0).total_seconds()
+    n = sum(len(v) for v in sigs.values())
+    print(
+        f"    period {start[:10]}->{end[:10]} filtered={n} "
+        f"wr={result.get('wr', 0):.1%} tpw={result.get('trades_per_week', 0):.2f} "
+        f"({dt:.1f}s)",
+        flush=True,
+    )
+    return result
 
 
 def _kill_setups(
@@ -135,7 +163,19 @@ def _kill_setups(
         if keep:
             survivors.append(sid)
     out = deepcopy(base_cfg)
-    out.active_setups = survivors if survivors else list(base_cfg.active_setups)[:1]
+    if survivors:
+        out.active_setups = survivors
+    else:
+        # BUGFIX: do NOT collapse to setup #1 only — keep best by val WR
+        ranked = sorted(
+            kill_log,
+            key=lambda x: (x["wr"], x["net_pnl"], x["resolved"]),
+            reverse=True,
+        )
+        keep_n = min(3, len(ranked))
+        out.active_setups = [
+            int(r["setup_id"]) for r in ranked[:keep_n] if r["resolved"] >= 10
+        ] or ([int(ranked[0]["setup_id"])] if ranked else list(base_cfg.active_setups)[:1])
     return out, kill_log
 
 
@@ -151,7 +191,14 @@ def _write_freeze(cfg: ConfluenceFilterConfig, extra: Dict[str, Any]) -> str:
         "max_slippage_pips": 0.5,
         "commission_per_lot": 3.50,
         "max_portfolio_open": 3,
+        "max_trades_per_day": 5,
         "breakeven_rules": {"enabled": False},
+        "gates": {
+            "min_wr": 0.80,
+            "min_trades_per_week": 10.0,
+            "max_trades_per_week": 12.0,
+            "max_trades_per_day": 5,
+        },
         "dates": {
             "train": list(TRAIN),
             "validate": list(VAL),
@@ -253,9 +300,14 @@ def main() -> None:
         action="store_true",
         help="Skip L1/L7/L10/L16 battery (faster)",
     )
+    parser.add_argument(
+        "--skip-integrity",
+        action="store_true",
+        help="Skip JForex integrity re-scan (use after a known PASS)",
+    )
     args = parser.parse_args()
 
-    oos_end = datetime.utcnow().strftime("%Y-%m-%d")
+    oos_end = datetime.now().strftime("%Y-%m-%d")
 
     if args.smoke_synthetic:
         print("SMOKE MODE: synthetic data only — verdict is NOT a real study.", flush=True)
@@ -269,37 +321,50 @@ def main() -> None:
         oos_end = "2020-01-02"
         args.max_grid = min(args.max_grid, 4)
     else:
-        print("Checking data integrity...", flush=True)
-        integrity = check_data_coverage(
-            args.data_dir, PAIRS, "2020-01-01", oos_end
-        )
-        if not integrity["ok"]:
-            print("DATA INTEGRITY FAIL — aborting ladder until download is complete.")
-            print(json.dumps(integrity, indent=2))
-            raise SystemExit(2)
+        if args.skip_integrity:
+            print("Skipping integrity re-scan (--skip-integrity).", flush=True)
+            integrity = {"ok": True, "errors": [], "skipped": True}
+        else:
+            print("Checking data integrity...", flush=True)
+            integrity = check_data_coverage(
+                args.data_dir, PAIRS, "2020-01-01", oos_end
+            )
+            if not integrity["ok"]:
+                print("DATA INTEGRITY FAIL — aborting ladder until download is complete.")
+                print(json.dumps(integrity, indent=2))
+                raise SystemExit(2)
         print("Loading 5m frames (full sample_ratio=1.0)...", flush=True)
         frames = _load_pair_frames(args.data_dir)
+        print("Building signal cache (once)...", flush=True)
+        _build_signal_cache(frames)
 
     grid = iter_grid_configs()[: args.max_grid]
     print(f"Train grid size: {len(grid)}", flush=True)
 
     train_candidates = []
     for i, cfg in enumerate(grid):
+        print(f"  train {i+1}/{len(grid)}...", flush=True)
         res = _run_period(frames, cfg, TRAIN[0], TRAIN[1], args.capital)
-        if res["wr"] >= 0.70 and res["trades_per_week"] <= 15.0:
+        # Soft train funnel: quality bias, still leave room for val selection
+        if (
+            res["wr"] >= 0.55
+            and res["trades_per_week"] >= 8.0
+            and res["trades_per_week"] <= 18.0
+        ):
             train_candidates.append((cfg, res))
-        if (i + 1) % 8 == 0:
-            print(f"  train progress {i+1}/{len(grid)}", flush=True)
 
     print(f"Train funnel survivors: {len(train_candidates)}", flush=True)
     if not train_candidates:
         ranked = []
         for cfg in grid:
             res = _run_period(frames, cfg, TRAIN[0], TRAIN[1], args.capital)
-            if res["trades_per_week"] <= 12.0 or args.smoke_synthetic:
+            if (
+                args.smoke_synthetic
+                or (res["trades_per_week"] >= 6.0 and res["trades_per_week"] <= 18.0)
+            ):
                 ranked.append((cfg, res))
-        ranked.sort(key=lambda x: x[1]["net_pnl"], reverse=True)
-        train_candidates = ranked[:5] if ranked else [(grid[0], _run_period(frames, grid[0], TRAIN[0], TRAIN[1], args.capital))]
+        ranked.sort(key=lambda x: (x[1]["wr"], x[1]["net_pnl"]), reverse=True)
+        train_candidates = ranked[:8] if ranked else [(grid[0], _run_period(frames, grid[0], TRAIN[0], TRAIN[1], args.capital))]
         print(f"Fallback candidates: {len(train_candidates)}", flush=True)
 
     best = None
@@ -310,6 +375,7 @@ def main() -> None:
         score = (
             int(gates["win_rate"]["pass"]),
             int(gates["trades_per_week"]["pass"]),
+            int(gates["min_resolved"]["pass"]),
             val_res["wr"],
             val_res["net_pnl"],
             -val_res["max_drawdown_pct"],
@@ -355,7 +421,9 @@ def main() -> None:
     elif args.smoke_synthetic:
         loopholes = {"L7_spread": filter_trades_by_spread_p95(oos_m.get("trades", []))}
 
-    report_path = os.path.join(ROOT, "audit", "reports", "QUALITY_LADDER_OOS_RESULT.md")
+    report_path = os.path.join(
+        ROOT, "audit", "reports", "QUALITY_LADDER_FILTER_ONLY_OOS_RESULT.md"
+    )
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     report = write_quality_ladder_report(
         report_path,

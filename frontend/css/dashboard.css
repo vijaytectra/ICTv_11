@@ -432,6 +432,48 @@ body {
   font-size: 11px;
 }
 
+.ops-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.ops-stat {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 14px;
+  min-width: 88px;
+}
+
+.ops-stat span {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ops-stat strong {
+  font-size: 18px;
+}
+
+.ops-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ops-actions button {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
 .badge-sell {
   background: rgba(239, 68, 68, 0.15);
   color: var(--accent-red);

@@ -4,6 +4,7 @@ import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
@@ -12,6 +13,7 @@ from backend.engine.strategy_setups import get_all_setup_signals
 from backend.engine.backtester import execute_backtest
 from backend.telegram_alerts.telegram_bot import TelegramAlertBot
 from backend.telegram_alerts.mt5_monitor import MT5LiveMonitor
+from backend.journal import JournalStore, REASON_CODES
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ict_server")
@@ -26,7 +28,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "config", "config.json")
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+CONFIG_PATH = os.path.join(REPO_ROOT, "config", "config.json")
 
 def load_config() -> Dict[str, Any]:
     if os.path.exists(CONFIG_PATH):
@@ -37,6 +40,14 @@ def load_config() -> Dict[str, Any]:
 def save_config(cfg: Dict[str, Any]):
     with open(CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=2)
+
+
+def _journal_store() -> JournalStore:
+    cfg = load_config()
+    rel = cfg.get("journal_db_path", "data/trade_journal.db")
+    path = rel if os.path.isabs(rel) else os.path.join(REPO_ROOT, rel)
+    return JournalStore(path)
+
 
 class BacktestRequest(BaseModel):
     pairs: List[str] = ["GBPUSD", "EURUSD", "USDJPY"]
@@ -51,6 +62,27 @@ class BacktestRequest(BaseModel):
 class TelegramTestRequest(BaseModel):
     bot_token: str
     chat_id: str
+
+
+class JournalPatchRequest(BaseModel):
+    status: Optional[str] = None
+    outcome: Optional[str] = None
+    note: Optional[str] = None
+
+
+class JournalCreateRequest(BaseModel):
+    pair: str
+    direction: str
+    setup_id: Optional[int] = None
+    setup_name: Optional[str] = None
+    entry: Optional[float] = None
+    sl: Optional[float] = None
+    tp: Optional[float] = None
+    entry_time: Optional[str] = None
+    note: Optional[str] = None
+    status: str = "PROPOSED"
+    source: str = "manual"
+
 
 @app.get("/api/config")
 def get_config_endpoint():
@@ -69,6 +101,51 @@ def test_telegram_endpoint(req: TelegramTestRequest):
         return {"status": "success", "message": "Test notification sent to Telegram!"}
     else:
         raise HTTPException(status_code=400, detail="Failed to send Telegram message. Check Bot Token & Chat ID.")
+
+
+@app.get("/api/journal/today")
+def journal_today():
+    return _journal_store().today_summary()
+
+
+@app.get("/api/journal/trades")
+def journal_trades(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    source: Optional[str] = None,
+    status: Optional[str] = None,
+):
+    return _journal_store().list_trades(
+        date_from=date_from, date_to=date_to, source=source, status=status
+    )
+
+
+@app.post("/api/journal/trades")
+def journal_create(req: JournalCreateRequest):
+    row = _journal_store().insert_manual(req.dict())
+    return row
+
+
+@app.patch("/api/journal/trades/{trade_id}")
+def journal_patch(trade_id: int, req: JournalPatchRequest):
+    try:
+        return _journal_store().update_trade(
+            trade_id, status=req.status, outcome=req.outcome, note=req.note
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Trade not found")
+
+
+@app.get("/api/journal/export.csv")
+def journal_export(date_from: Optional[str] = None, date_to: Optional[str] = None):
+    csv_text = _journal_store().export_csv(date_from=date_from, date_to=date_to)
+    return Response(content=csv_text, media_type="text/csv")
+
+
+@app.get("/api/journal/reason-codes")
+def journal_reason_codes():
+    return {"reason_codes": REASON_CODES}
+
 
 @app.post("/api/backtest")
 def run_backtest_endpoint(req: BacktestRequest):
@@ -101,6 +178,12 @@ def run_backtest_endpoint(req: BacktestRequest):
         except Exception as e:
             logger.error(f"Error backtesting pair {pair}: {e}")
             results_by_pair[pair] = {"error": str(e)}
+
+    try:
+        n = _journal_store().insert_from_backtest(aggregated_trades)
+        logger.info(f"Journaled {n} backtest trades")
+    except Exception as e:
+        logger.warning(f"Journal insert failed (non-fatal): {e}")
             
     # Calculate Overall Portfolio Metrics
     total_trades = sum(r.get('total_trades', 0) for r in results_by_pair.values() if 'total_trades' in r)
@@ -117,11 +200,11 @@ def run_backtest_endpoint(req: BacktestRequest):
         3: "ICT Silver Bullet",
         4: "Turtle Soup Reversal",
         5: "OB + FVG Confluence",
-        6: "🦄 Unicorn (Breaker + FVG)",
-        7: "🐢 Turtle Soup (MSS + FVG)",
-        8: "🎯 OTE (61.8%-78.6% Fib)",
-        9: "🔄 Breaker Block Retest",
-        10: "📈 AMD / Power of 3"
+        6: "Unicorn (Breaker + FVG)",
+        7: "Turtle Soup (MSS + FVG)",
+        8: "OTE (61.8%-78.6% Fib)",
+        9: "Breaker Block Retest",
+        10: "AMD / Power of 3"
     }
     
     setup_stats = {i: {"setup_id": i, "name": setup_names_map[i], "trades": 0, "wins": 0, "losses": 0, "win_rate": 0.0, "net_pnl": 0.0} for i in range(1, 11)}
@@ -154,6 +237,6 @@ def run_backtest_endpoint(req: BacktestRequest):
         "by_pair": results_by_pair
     }
 
-frontend_dir = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
+frontend_dir = os.path.join(REPO_ROOT, "frontend")
 if os.path.exists(frontend_dir):
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
