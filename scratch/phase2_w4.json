@@ -1,0 +1,51 @@
+{
+  "label": "W4_2024_2026_no_setup6",
+  "resolved": 83,
+  "wins": 27,
+  "losses": 56,
+  "wr": 0.3253012048192771,
+  "wilson_95": [
+    0.23419333708259782,
+    0.43186478315375454
+  ],
+  "net_pnl": -1290.4374369454672,
+  "val_signals": 124,
+  "wr_by_setup": {
+    "1": {
+      "wins": 2,
+      "losses": 2,
+      "resolved": 4,
+      "wr": 0.5
+    },
+    "2": {
+      "wins": 8,
+      "losses": 3,
+      "resolved": 11,
+      "wr": 0.7272727272727273
+    },
+    "3": {
+      "wins": 4,
+      "losses": 16,
+      "resolved": 20,
+      "wr": 0.2
+    },
+    "4": {
+      "wins": 1,
+      "losses": 4,
+      "resolved": 5,
+      "wr": 0.2
+    },
+    "5": {
+      "wins": 0,
+      "losses": 1,
+      "resolved": 1,
+      "wr": 0.0
+    },
+    "9": {
+      "wins": 12,
+      "losses": 30,
+      "resolved": 42,
+      "wr": 0.2857142857142857
+    }
+  }
+}

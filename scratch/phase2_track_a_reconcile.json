@@ -1,0 +1,243 @@
+[
+  {
+    "label": "W1_val_2022_2023_FVG_B",
+    "slice": [
+      "2021-06-01",
+      "2023-12-31"
+    ],
+    "val": [
+      "2022-01-01",
+      "2023-12-31"
+    ],
+    "fvg_require_displacement_candle": true,
+    "use_narrative": false,
+    "kz_table": "mentorship_2017",
+    "accepted_slice": 500,
+    "val_signals": 387,
+    "val_signals_by_setup": {
+      "6": 325,
+      "2": 6,
+      "3": 15,
+      "9": 26,
+      "4": 10,
+      "1": 4,
+      "5": 1
+    },
+    "resolved": 267,
+    "wins": 78,
+    "losses": 189,
+    "wr": 0.29213483146067415,
+    "wilson_95": [
+      0.24084552470269374,
+      0.34932061720438556
+    ],
+    "trades_per_week": 2.5602739726027397,
+    "net_pnl": -4047.4993377572,
+    "max_dd_pct": 41.71135385103764,
+    "wr_by_setup": {
+      "1": {
+        "wins": 1,
+        "losses": 2,
+        "resolved": 3,
+        "wr": 0.3333333333333333
+      },
+      "2": {
+        "wins": 1,
+        "losses": 4,
+        "resolved": 5,
+        "wr": 0.2
+      },
+      "3": {
+        "wins": 3,
+        "losses": 10,
+        "resolved": 13,
+        "wr": 0.23076923076923078
+      },
+      "4": {
+        "wins": 0,
+        "losses": 5,
+        "resolved": 5,
+        "wr": 0.0
+      },
+      "5": {
+        "wins": 0,
+        "losses": 1,
+        "resolved": 1,
+        "wr": 0.0
+      },
+      "6": {
+        "wins": 72,
+        "losses": 162,
+        "resolved": 234,
+        "wr": 0.3076923076923077
+      },
+      "9": {
+        "wins": 1,
+        "losses": 5,
+        "resolved": 6,
+        "wr": 0.16666666666666666
+      }
+    }
+  },
+  {
+    "label": "W2_final_like_2024_2026_FVG_B",
+    "slice": [
+      "2023-06-01",
+      "2026-09-21"
+    ],
+    "val": [
+      "2024-01-01",
+      "2026-09-17"
+    ],
+    "fvg_require_displacement_candle": true,
+    "use_narrative": false,
+    "kz_table": "mentorship_2017",
+    "accepted_slice": 597,
+    "val_signals": 483,
+    "val_signals_by_setup": {
+      "2": 13,
+      "6": 359,
+      "9": 63,
+      "3": 25,
+      "4": 14,
+      "5": 4,
+      "1": 5
+    },
+    "resolved": 320,
+    "wins": 97,
+    "losses": 223,
+    "wr": 0.303125,
+    "wilson_95": [
+      0.25534829680896215,
+      0.35557242823086604
+    ],
+    "trades_per_week": 2.260343087790111,
+    "net_pnl": -4281.348159624558,
+    "max_dd_pct": 45.17801728768124,
+    "wr_by_setup": {
+      "1": {
+        "wins": 2,
+        "losses": 1,
+        "resolved": 3,
+        "wr": 0.6666666666666666
+      },
+      "2": {
+        "wins": 8,
+        "losses": 3,
+        "resolved": 11,
+        "wr": 0.7272727272727273
+      },
+      "3": {
+        "wins": 4,
+        "losses": 16,
+        "resolved": 20,
+        "wr": 0.2
+      },
+      "4": {
+        "wins": 1,
+        "losses": 4,
+        "resolved": 5,
+        "wr": 0.2
+      },
+      "5": {
+        "wins": 0,
+        "losses": 1,
+        "resolved": 1,
+        "wr": 0.0
+      },
+      "6": {
+        "wins": 74,
+        "losses": 192,
+        "resolved": 266,
+        "wr": 0.2781954887218045
+      },
+      "9": {
+        "wins": 8,
+        "losses": 6,
+        "resolved": 14,
+        "wr": 0.5714285714285714
+      }
+    }
+  },
+  {
+    "label": "W3_val_2022_2023_disp_OFF",
+    "slice": [
+      "2021-06-01",
+      "2023-12-31"
+    ],
+    "val": [
+      "2022-01-01",
+      "2023-12-31"
+    ],
+    "fvg_require_displacement_candle": false,
+    "use_narrative": false,
+    "kz_table": "mentorship_2017",
+    "accepted_slice": 623,
+    "val_signals": 491,
+    "val_signals_by_setup": {
+      "6": 386,
+      "2": 15,
+      "9": 52,
+      "3": 15,
+      "4": 14,
+      "10": 1,
+      "1": 6,
+      "5": 2
+    },
+    "resolved": 311,
+    "wins": 91,
+    "losses": 220,
+    "wr": 0.29260450160771706,
+    "wilson_95": [
+      0.24481695259563932,
+      0.3454530185727163
+    ],
+    "trades_per_week": 2.9821917808219176,
+    "net_pnl": -4408.474023267591,
+    "max_dd_pct": 45.24612468204506,
+    "wr_by_setup": {
+      "1": {
+        "wins": 2,
+        "losses": 2,
+        "resolved": 4,
+        "wr": 0.5
+      },
+      "2": {
+        "wins": 3,
+        "losses": 10,
+        "resolved": 13,
+        "wr": 0.23076923076923078
+      },
+      "3": {
+        "wins": 3,
+        "losses": 8,
+        "resolved": 11,
+        "wr": 0.2727272727272727
+      },
+      "4": {
+        "wins": 0,
+        "losses": 6,
+        "resolved": 6,
+        "wr": 0.0
+      },
+      "5": {
+        "wins": 0,
+        "losses": 2,
+        "resolved": 2,
+        "wr": 0.0
+      },
+      "6": {
+        "wins": 79,
+        "losses": 181,
+        "resolved": 260,
+        "wr": 0.3038461538461538
+      },
+      "9": {
+        "wins": 4,
+        "losses": 11,
+        "resolved": 15,
+        "wr": 0.26666666666666666
+      }
+    }
+  }
+]

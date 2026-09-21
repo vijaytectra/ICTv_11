@@ -1,0 +1,106 @@
+{
+  "window": {
+    "slice": [
+      "2023-06-01",
+      "2026-09-21"
+    ],
+    "val": [
+      "2024-01-01",
+      "2026-09-17"
+    ]
+  },
+  "indicators": "current H-lock (FVG=B, mentorship_2017)",
+  "indicator_counts_val": {
+    "bars": 203076,
+    "fvg_nonzero": 3427,
+    "ifvg_nonzero": 2078,
+    "breaker_nonzero": 18863,
+    "ob_nonzero": 45221,
+    "sweep_nonzero": 26246,
+    "kz_bars": 76080
+  },
+  "current": {
+    "label": "CURRENT_gens_2_6_9",
+    "val_signals": 435,
+    "val_by_setup": {
+      "2": 13,
+      "6": 359,
+      "9": 63
+    },
+    "resolved": 304,
+    "wins": 92,
+    "losses": 212,
+    "wr": 0.3026315789473684,
+    "wilson_95": [
+      0.25371704893910063,
+      0.3564719085206697
+    ],
+    "net_pnl": -4244.424506978981,
+    "wr_by_setup": {
+      "2": {
+        "wins": 8,
+        "losses": 3,
+        "resolved": 11,
+        "wr": 0.7272727272727273
+      },
+      "6": {
+        "wins": 76,
+        "losses": 203,
+        "resolved": 279,
+        "wr": 0.2724014336917563
+      },
+      "9": {
+        "wins": 8,
+        "losses": 6,
+        "resolved": 14,
+        "wr": 0.5714285714285714
+      }
+    }
+  },
+  "legacy_440306d": {
+    "label": "LEGACY_440306d_gens_2_6_9",
+    "val_signals": 2105,
+    "val_by_setup": {
+      "2": 208,
+      "6": 12,
+      "9": 1885
+    },
+    "resolved": 1330,
+    "wins": 366,
+    "losses": 964,
+    "wr": 0.27518796992481204,
+    "wilson_95": [
+      0.2518591473544197,
+      0.2998117082443279
+    ],
+    "net_pnl": -6349.393566093886,
+    "wr_by_setup": {
+      "2": {
+        "wins": 47,
+        "losses": 99,
+        "resolved": 146,
+        "wr": 0.3219178082191781
+      },
+      "6": {
+        "wins": 2,
+        "losses": 1,
+        "resolved": 3,
+        "wr": 0.6666666666666666
+      },
+      "9": {
+        "wins": 317,
+        "losses": 864,
+        "resolved": 1181,
+        "wr": 0.26841659610499574
+      }
+    }
+  },
+  "code_diff_summary": {
+    "setup_2_legacy": "ifvg + ob + bias on KZ bar; NO sweep; NO PD; NO displacement gate",
+    "setup_2_current": "sweep q>=1 + ifvg + bias + discount/premium + displacement",
+    "setup_9_legacy": "same-bar breaker_type + (ob OR fvg) + bias; NOT a CE retest",
+    "setup_9_current": "prior-bar breaker + fvg AND ob + CE within 5 pips + displacement",
+    "setup_6_legacy": "same-bar breaker + fvg + ob",
+    "setup_6_current": "3-bar breaker window + FVG/breaker overlap (no same-bar OB req)"
+  }
+}
