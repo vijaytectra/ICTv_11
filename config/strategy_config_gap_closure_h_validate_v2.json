@@ -1,0 +1,21 @@
+{
+  "base_freeze_hash": "7917a2f1603691cd",
+  "geometry_lock_version": "H-2026-09-21",
+  "kz_table": "mentorship_2017",
+  "fvg_require_displacement_candle": true,
+  "fvg_law": "B",
+  "require_ote": true,
+  "ote_mode": "soft_score",
+  "liquidity_model": "session_pools",
+  "min_rr": 2.0,
+  "risk_percent": 1.0,
+  "active_setups": [1, 2, 3, 4, 5, 6, 9, 10],
+  "no_be_for_gates": true,
+  "validate_looseners": {
+    "L1_b_raid_clarity": true,
+    "L2_raid_lookback": 20,
+    "L3_accept_choch_as_mss": true
+  },
+  "oos_status": "NOT_RUN",
+  "note": "Validate-only looseners from GAP_CLOSURE_H_VALIDATE_GATE_AUTOPSY.md; locks unchanged"
+}

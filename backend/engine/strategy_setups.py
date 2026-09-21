@@ -459,6 +459,14 @@ def get_all_setup_signals(
     return_indicators: bool = False,
     use_narrative: bool = True,
     rejections: List[Dict[str, Any]] = None,
+    kz_table: str = "mentorship_2017",
+    fvg_require_displacement_candle: bool = True,
+    liquidity_model: str = "session_pools",
+    require_ote: bool = True,
+    ote_mode: str = "soft_score",
+    raid_lookback: int = 20,
+    b_raid_clarity: bool = True,
+    accept_choch_as_mss: bool = True,
 ):
     """
     Run indicators and generate signals for active setups.
@@ -468,7 +476,13 @@ def get_all_setup_signals(
     from backend.engine.event_engine import build_events
     from backend.engine.narrative import validate_trade
 
-    df_ind = run_all_indicators(df, pair)
+    df_ind = run_all_indicators(
+        df,
+        pair,
+        kz_table=kz_table,
+        fvg_require_displacement_candle=fvg_require_displacement_candle,
+        liquidity_model=liquidity_model,
+    )
     if active_setups is None:
         active_setups = [1, 2, 3, 4, 5, 6, 9, 10]
 
@@ -522,6 +536,11 @@ def get_all_setup_signals(
             require_mss=(sid == 4),
             require_raid_ab=True,
             pip_size=pip_size,
+            require_ote=require_ote,
+            ote_mode=ote_mode,
+            raid_lookback=raid_lookback,
+            b_raid_clarity=b_raid_clarity,
+            accept_choch_as_mss=accept_choch_as_mss,
         )
         if not v.ok:
             if rejections is not None:
@@ -545,6 +564,10 @@ def get_all_setup_signals(
         sig["event_id"] = v.event_id
         sig["raid_grade"] = v.narrative.raid_grade if v.narrative else None
         sig["session"] = v.narrative.session if v.narrative else None
+        sig["soft_score"] = getattr(v, "soft_score", 1.0)
+        sig["soft_flags"] = list(v.narrative.soft_flags) if v.narrative else []
+        sig["in_ote"] = bool(v.narrative.in_ote) if v.narrative else False
+        sig["entry"] = round(v.entry, 5)
         if v.event_id:
             used_events.add(v.event_id)
         accepted.append(sig)

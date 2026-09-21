@@ -135,12 +135,16 @@ def refine_entry_to_ce(
 
 
 def build_narrative_at(
-    df: pd.DataFrame, i: int, events: List[MarketEvent]
+    df: pd.DataFrame,
+    i: int,
+    events: List[MarketEvent],
+    raid_lookback: int = 20,
+    b_raid_clarity: bool = True,
 ) -> NarrativeContext:
-    raid = latest_raid(events, i, lookback=12)
+    raid = latest_raid(events, i, lookback=raid_lookback)
     has_disp = False
     has_mss = False
-    has_choch = latest_event(events, i, "CHoCH", lookback=12) is not None
+    has_choch = latest_event(events, i, "CHoCH", lookback=raid_lookback) is not None
     if raid is not None:
         for e in events:
             if e.parent_id == raid.event_id and e.event_type == "DISPLACEMENT":
@@ -188,6 +192,16 @@ def build_narrative_at(
     ote_t = int(df["ote_type"].iloc[i]) if "ote_type" in df.columns else 0
     in_ote = ote_t != 0
 
+    # L1 tightened (v3): B upgrade only for major-pool quality≥2 + displacement
+    # (do NOT promote swing quality=1 raids — that drove v2 WR collapse)
+    raid_grade = (raid.grade or "C") if raid else "C"
+    if raid is not None and b_raid_clarity and raid_grade == "C" and has_disp:
+        q = int(raid.meta.get("sweep_quality", 0))
+        if q >= 2:
+            raid_grade = "B"
+            if has_mss:
+                raid_grade = "A"
+
     return NarrativeContext(
         bar_idx=i,
         timestamp=df.index[i].strftime("%Y-%m-%d %H:%M:%S"),
@@ -199,7 +213,7 @@ def build_narrative_at(
         dealing_low=float(dealing_low) if not np.isnan(dealing_low) else float(df["low"].iloc[i]),
         eq_level=float(eq) if not np.isnan(eq) else float(df["close"].iloc[i]),
         raid=raid,
-        raid_grade=(raid.grade or "C") if raid else "C",
+        raid_grade=raid_grade,
         has_displacement=has_disp,
         has_mss=has_mss,
         has_choch=has_choch,
@@ -241,12 +255,18 @@ def validate_trade(
     ote_mode: str = "soft_score",
     prefer_fvg_ce: bool = True,
     ote_soft_penalty: float = 0.15,
+    raid_lookback: int = 20,
+    b_raid_clarity: bool = True,
+    accept_choch_as_mss: bool = True,
 ) -> ValidationResult:
     """
     Pre-trade 10Q filter. Reject incomplete narrative / grade C / <2R opposing liq / duplicates.
     OTE: soft_score mode never hard-rejects on missing OTE.
+    L1–L3 validate looseners: B-raid clarity, raid_lookback=20, optional MSS via CHoCH.
     """
-    nar = build_narrative_at(df, i, events)
+    nar = build_narrative_at(
+        df, i, events, raid_lookback=raid_lookback, b_raid_clarity=b_raid_clarity
+    )
     bias = 1 if direction == "BUY" else -1
     soft = 1.0
     flags: List[str] = []
@@ -267,9 +287,11 @@ def validate_trade(
     if not nar.has_displacement:
         return ValidationResult(False, "NO_DISPLACEMENT", nar)
 
-    # Q4: MSS when required (CHoCH alone does not satisfy require_mss)
-    if require_mss and not nar.has_mss:
-        return ValidationResult(False, "NO_MSS", nar)
+    # Q4: MSS when required — optional: CHoCH satisfies structure shift
+    if require_mss:
+        structure_ok = nar.has_mss or (accept_choch_as_mss and nar.has_choch)
+        if not structure_ok:
+            return ValidationResult(False, "NO_MSS", nar)
 
     # Q5: premium/discount location
     if direction == "BUY" and not nar.is_discount:

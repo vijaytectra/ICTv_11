@@ -1,0 +1,28 @@
+{
+  "base_freeze_hash": "7917a2f1603691cd",
+  "geometry_lock_version": "H-2026-09-21",
+  "kz_table": "mentorship_2017",
+  "fvg_require_displacement_candle": true,
+  "fvg_law": "B",
+  "require_ote": true,
+  "ote_mode": "soft_score",
+  "liquidity_model": "session_pools",
+  "min_rr": 2.0,
+  "risk_percent": 1.0,
+  "active_setups": [1, 4, 5, 9, 10],
+  "killed_setups_validate_only": [2, 3, 6],
+  "kill_rationale": {
+    "2": "v2 validate WR 15.4% (2/13), pnl -931",
+    "3": "v2 validate WR 30.8% (4/13), pnl -201",
+    "6": "v2 validate WR 25.0% (7/28), pnl -1086 — dominant loser"
+  },
+  "no_be_for_gates": true,
+  "validate_looseners": {
+    "L1_b_raid_clarity": true,
+    "L1_mode": "major_pool_q2_only",
+    "L2_raid_lookback": 20,
+    "L3_accept_choch_as_mss": true
+  },
+  "oos_status": "NOT_RUN",
+  "note": "v3: tightened L1 (q>=2 only); kill 2/3/6 validate-only; keep L2/L3; no new looseners"
+}

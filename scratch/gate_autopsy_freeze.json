@@ -1,0 +1,86 @@
+{
+  "freeze_hash": "7917a2f1603691cd",
+  "slice": "2021-06-01..2023-12-31",
+  "validate": "2022-01-01..2023-12-31",
+  "accepted_all_slice": 30,
+  "rejected_all_slice": 3016,
+  "accepted_validate": 25,
+  "rejected_validate": 2317,
+  "reason_counts_validate": {
+    "RAID_GRADE_C": 904,
+    "NO_LIQUIDITY_RAID": 488,
+    "NOT_IN_PREMIUM": 298,
+    "RAID_DIRECTION_MISMATCH": 272,
+    "NOT_IN_DISCOUNT": 253,
+    "OPPOSING_LIQ_LT_2R": 53,
+    "NO_MSS": 34,
+    "DUPLICATE_EVENT": 11,
+    "FVG_INVALIDATED": 3,
+    "NO_OPPOSING_LIQUIDITY": 1
+  },
+  "reason_counts_all_slice": {
+    "RAID_GRADE_C": 1168,
+    "NO_LIQUIDITY_RAID": 649,
+    "NOT_IN_PREMIUM": 384,
+    "RAID_DIRECTION_MISMATCH": 347,
+    "NOT_IN_DISCOUNT": 332,
+    "OPPOSING_LIQ_LT_2R": 70,
+    "NO_MSS": 46,
+    "DUPLICATE_EVENT": 14,
+    "FVG_INVALIDATED": 3,
+    "RISK_TOO_SMALL": 2,
+    "NO_OPPOSING_LIQUIDITY": 1
+  },
+  "raid_grade_on_validate_rejects": {
+    "B": 860,
+    "C": 1394,
+    "A": 63
+  },
+  "by_setup_top_reasons": {
+    "1": {
+      "OPPOSING_LIQ_LT_2R": 13,
+      "DUPLICATE_EVENT": 2
+    },
+    "2": {
+      "RAID_GRADE_C": 36,
+      "OPPOSING_LIQ_LT_2R": 12
+    },
+    "3": {
+      "RAID_GRADE_C": 55,
+      "NO_LIQUIDITY_RAID": 29,
+      "RAID_DIRECTION_MISMATCH": 18,
+      "OPPOSING_LIQ_LT_2R": 7,
+      "DUPLICATE_EVENT": 3
+    },
+    "4": {
+      "NO_MSS": 34,
+      "NOT_IN_PREMIUM": 12,
+      "NOT_IN_DISCOUNT": 4,
+      "DUPLICATE_EVENT": 1,
+      "OPPOSING_LIQ_LT_2R": 1
+    },
+    "5": {
+      "NO_LIQUIDITY_RAID": 5,
+      "RAID_GRADE_C": 5,
+      "OPPOSING_LIQ_LT_2R": 2,
+      "DUPLICATE_EVENT": 1
+    },
+    "6": {
+      "RAID_GRADE_C": 765,
+      "NO_LIQUIDITY_RAID": 424,
+      "NOT_IN_PREMIUM": 260,
+      "RAID_DIRECTION_MISMATCH": 244,
+      "NOT_IN_DISCOUNT": 219
+    },
+    "9": {
+      "RAID_GRADE_C": 43,
+      "NO_LIQUIDITY_RAID": 30,
+      "NOT_IN_DISCOUNT": 30,
+      "NOT_IN_PREMIUM": 25,
+      "RAID_DIRECTION_MISMATCH": 10
+    },
+    "10": {
+      "NOT_IN_PREMIUM": 1
+    }
+  }
+}
